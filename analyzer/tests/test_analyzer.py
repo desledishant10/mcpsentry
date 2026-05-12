@@ -324,6 +324,81 @@ def test_s005_clean_on_single_capability_server():
     assert findings == []
 
 
+# MCP-S-009 — URL fetch unrestricted -----------------------------------------
+
+from analyzer.rules import check_url_fetch_unrestricted
+
+
+def test_s009_flags_url_tool_without_constraint():
+    tool = _captured_tool("fetch_url", "Makes an HTTP request to the given URL.", {
+        "type": "object",
+        "properties": {"url": {"type": "string", "format": "uri"}},
+    })
+    findings = check_url_fetch_unrestricted(tool)
+    assert findings
+    assert findings[0].rule_id == "MCP-S-009"
+
+
+def test_s009_skips_when_schema_pattern_present():
+    tool = _captured_tool("fetch_url", "Makes an HTTP request to the URL.", {
+        "type": "object",
+        "properties": {"url": {"type": "string", "format": "uri",
+                                "pattern": "^https://api\\.example\\.com/"}},
+    })
+    assert check_url_fetch_unrestricted(tool) == []
+
+
+def test_s009_skips_when_validation_keyword_in_description():
+    tool = _captured_tool(
+        "fetch_url",
+        "Fetches a URL. Only http and https schemes are allowed; internal hosts are rejected.",
+        {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}}},
+    )
+    assert check_url_fetch_unrestricted(tool) == []
+
+
+def test_s009_skips_tools_without_url_parameter():
+    tool = _captured_tool("read_file", "Reads a file at the path.", {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+    })
+    assert check_url_fetch_unrestricted(tool) == []
+
+
+def test_s009_catches_real_captured_fetch():
+    """Regression: the real captured mcp-server-fetch should fire S-009 —
+    static counterpart to the D-003 dynamic finding."""
+    from pathlib import Path
+    from analyzer.analyze import analyze_path
+    captured = (
+        Path(__file__).parent.parent.parent / "calibration" / "reports"
+        / "captured-mcp-server-fetch.json"
+    )
+    if not captured.exists():
+        import pytest
+        pytest.skip("captured fetch JSON not present")
+    findings = analyze_path(captured)
+    s009 = [f for f in findings if f.rule_id == "MCP-S-009"]
+    assert s009, f"expected S-009 on captured fetch; got {findings}"
+
+
+def test_s009_catches_real_captured_http_request():
+    """Regression: the real captured mcp-server-http-request should fire
+    S-009 on every method (get/post/put/patch/delete)."""
+    from pathlib import Path
+    from analyzer.analyze import analyze_path
+    captured = (
+        Path(__file__).parent.parent.parent / "calibration" / "reports"
+        / "captured-mcp-server-http-request.json"
+    )
+    if not captured.exists():
+        import pytest
+        pytest.skip("captured http-request JSON not present")
+    findings = analyze_path(captured)
+    s009 = [f for f in findings if f.rule_id == "MCP-S-009"]
+    assert len(s009) == 5, f"expected 5 S-009 findings (one per method); got {len(s009)}"
+
+
 def test_s005_flags_credential_exfil_combination():
     """secret_access + net_egress = credential_exfil rationale."""
     tools = [

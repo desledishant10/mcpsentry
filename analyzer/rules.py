@@ -291,6 +291,88 @@ def _safe_unparse(node) -> str:
 
 
 # ---------------------------------------------------------------------------
+# MCP-S-009 — URL-fetching tool with no apparent allowlist
+# ---------------------------------------------------------------------------
+
+# Parameter names that indicate the tool takes a URL.
+_URL_PARAM_NAMES = {"url", "uri", "link", "endpoint", "href", "address"}
+
+# JSON Schema `format` values that indicate a URL-typed parameter.
+_URL_FORMATS = {"uri", "iri", "url", "uri-reference"}
+
+# Description phrases that suggest the maintainer has implemented URL
+# validation (allowlist, denylist, scheme restriction). Presence in
+# description does not prove the validation works — but absence is a
+# strong signal it doesn't exist.
+_URL_VALIDATION_KEYWORDS = (
+    "allowlist", "allowlisted", "denylist", "blocklist",
+    "validated", "restricted to", "limited to",
+    "only http", "only https", "https only",
+    "scheme is", "rejected if",
+    "internal hosts", "metadata service", "link-local",
+    "ssrf",
+)
+
+
+def check_url_fetch_unrestricted(tool: DiscoveredTool) -> list[Finding]:
+    """MCP-S-009 — Heuristic SSRF flag for URL-fetching tools.
+
+    Static counterpart to the dynamic D-003 SSRF probe. Fires when:
+    - the tool has a parameter that looks like a URL (by name or by JSON
+      Schema `format: uri`), AND
+    - there is no JSON Schema `pattern`/`const`/`enum` constraint on that
+      parameter (which would indicate an allowlist), AND
+    - the description contains none of the URL-validation keywords that
+      maintainers typically use when documenting allowlist/denylist
+      behavior.
+
+    This is necessary-but-not-sufficient — the validation might exist in
+    code without being reflected in the schema or description. The
+    finding is a high-severity "review this" prompt, not a vulnerability
+    claim on its own. Auditor confirms by reading source.
+    """
+    if not tool.input_schema:
+        return []
+    properties = tool.input_schema.get("properties") or {}
+    url_params: list[str] = []
+    for pname, pdef in properties.items():
+        if pname.lower() in _URL_PARAM_NAMES:
+            url_params.append(pname)
+        elif isinstance(pdef, dict) and (pdef.get("format") or "").lower() in _URL_FORMATS:
+            url_params.append(pname)
+    if not url_params:
+        return []
+
+    # Any schema-level URL constraint counts as evidence of intent to restrict.
+    for pname in url_params:
+        pdef = properties.get(pname) or {}
+        if pdef.get("pattern") or pdef.get("const") or pdef.get("enum"):
+            return []
+
+    # Any validation keyword in the description counts as evidence of intent
+    # — auditor still verifies the implementation, but the rule defers.
+    desc_lower = (tool.description or "").lower()
+    if any(kw in desc_lower for kw in _URL_VALIDATION_KEYWORDS):
+        return []
+
+    return [Finding(
+        rule_id="MCP-S-009",
+        severity="high",
+        category="tool.input.ssrf",
+        file=tool.source_path,
+        line=tool.line,
+        tool_name=tool.name,
+        message=(
+            f"Tool has URL parameter(s) {url_params!r} with no schema-level "
+            f"constraint and no validation keywords in the description. "
+            f"Likely no scheme allowlist or host denylist — verify against "
+            f"SSRF to link-local / loopback / cloud-metadata addresses."
+        ),
+        evidence=f"url_params={url_params}",
+    )]
+
+
+# ---------------------------------------------------------------------------
 # MCP-S-002 — Cross-tool reference in tool description
 # ---------------------------------------------------------------------------
 
@@ -386,6 +468,7 @@ def check_overbroad_capability_surface(tools: list[DiscoveredTool]) -> list[Find
 RULES: list[Callable[[DiscoveredTool], list[Finding]]] = [
     check_description_injection,
     check_schema_field_injection,
+    check_url_fetch_unrestricted,
     check_path_traversal,
     check_command_injection,
 ]
