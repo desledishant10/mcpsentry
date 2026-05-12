@@ -1,5 +1,10 @@
 # MCP-Scan
 
+[![tests](https://github.com/desledishant10/mcp-scan/actions/workflows/tests.yml/badge.svg)](https://github.com/desledishant10/mcp-scan/actions/workflows/tests.yml)
+[![license: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
+[![python: 3.11+](https://img.shields.io/badge/python-3.11+-blue)](pyproject.toml)
+[![findings: 5](https://img.shields.io/badge/findings-5-orange)](findings/)
+
 > Security scanner for Model Context Protocol servers and AI agents.
 
 Finds vulnerabilities in MCP server implementations and tests AI agents against documented attack patterns. Static analyzer + dynamic harness + calibration corpus, all driven by a shared capability classifier.
