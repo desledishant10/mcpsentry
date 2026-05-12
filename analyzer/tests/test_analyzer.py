@@ -71,6 +71,34 @@ def test_s007_does_not_flag_safe_subprocess(findings):
     assert "safe_subprocess" not in _names_by_rule(findings, "MCP-S-007")
 
 
+# MCP-S-011 ------------------------------------------------------------------
+
+def test_s011_flags_log_of_param(findings):
+    assert "vulnerable_log_param" in _names_by_rule(findings, "MCP-S-011")
+
+
+def test_s011_flags_log_of_environ(findings):
+    assert "vulnerable_log_environ" in _names_by_rule(findings, "MCP-S-011")
+
+
+def test_s011_flags_log_of_header_attr(findings):
+    assert "vulnerable_log_header_attr" in _names_by_rule(findings, "MCP-S-011")
+
+
+def test_s011_flags_stderr_write(findings):
+    assert "vulnerable_log_stderr_write" in _names_by_rule(findings, "MCP-S-011")
+
+
+def test_s011_does_not_flag_constant_log(findings):
+    assert "safe_log_constant" not in _names_by_rule(findings, "MCP-S-011")
+
+
+def test_s011_does_not_flag_debug_gated(findings):
+    """`if DEBUG: print(token)` is the documented opt-in shape and must
+    not fire — otherwise every server with verbose-mode logging is a hit."""
+    assert "safe_log_debug_gated" not in _names_by_rule(findings, "MCP-S-011")
+
+
 # Cross-rule: severity filtering -------------------------------------------
 
 def test_critical_findings_present(findings):
@@ -510,3 +538,394 @@ def test_s005_flags_credential_exfil_combination():
     ]
     findings = check_overbroad_capability_surface(tools)
     assert any("credential_exfil" in f.message for f in findings)
+
+
+# MCP-S-010 — Hardcoded secrets and committed .env files --------------------
+# Fixtures built in-test with `tmp_path` (rather than checked-in files) so
+# the secret-shaped strings live nowhere outside the test process — keeps
+# the rule honest and stops upstream secret scanners from balking. The AWS
+# example used below (`AKIAIOSFODNN7EXAMPLE`) is AWS's own documented
+# placeholder; the others are obvious-fake placeholders matching format.
+
+from analyzer.rules import check_hardcoded_secrets
+
+
+def test_s010_flags_aws_access_key(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    findings = analyze_path(tmp_path)
+    aws = [f for f in findings if f.rule_id == "MCP-S-010"
+           and f.category == "secret.aws_access_key"]
+    assert aws, [f.category for f in findings]
+    assert aws[0].file == "config.py"
+    assert aws[0].line == 1
+
+
+def test_s010_flags_github_pat(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'GH_TOKEN = "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0001"\n'
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert any(f.category == "secret.github_pat_classic" for f in findings)
+
+
+def test_s010_flags_anthropic_key(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'ANTHROPIC_API_KEY = "sk-ant-api03-FAKEFAKEFAKEFAKEFAKEFAKE"\n'
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert any(f.category == "secret.anthropic_api_key" for f in findings)
+
+
+def test_s010_flags_private_key_pem(tmp_path):
+    (tmp_path / "id_rsa").write_text("")     # extension-less, won't be scanned
+    (tmp_path / "key.txt").write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...\n"
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert any(f.category == "secret.private_key_pem" for f in findings)
+
+
+def test_s010_flags_jwt(tmp_path):
+    (tmp_path / "fixtures.py").write_text(
+        'TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
+        'eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.'
+        'SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"\n'
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert any(f.category == "secret.jwt" for f in findings)
+
+
+def test_s010_flags_committed_dotenv(tmp_path):
+    (tmp_path / ".env").write_text("# placeholder\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    dotenv = [f for f in findings if f.category == "secret.dotenv_committed"]
+    assert dotenv and dotenv[0].file == ".env"
+
+
+def test_s010_ignores_example_env(tmp_path):
+    (tmp_path / ".env.example").write_text("OPENAI_API_KEY=your-key-here\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert not [f for f in findings if f.category == "secret.dotenv_committed"]
+
+
+def test_s010_ignores_template_env(tmp_path):
+    (tmp_path / ".env.template").write_text("# template\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert not [f for f in findings if f.category == "secret.dotenv_committed"]
+
+
+def test_s010_dotenv_finding_skips_content_scan(tmp_path):
+    """`.env` files fire the dotenv finding only — content is not
+    secondarily scanned, so a real-looking secret inside doesn't produce
+    two findings on the same file."""
+    (tmp_path / ".env").write_text("AWS_KEY=AKIAIOSFODNN7EXAMPLE\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    in_env = [f for f in findings if f.file == ".env"]
+    assert len(in_env) == 1
+    assert in_env[0].category == "secret.dotenv_committed"
+
+
+def test_s010_redacts_evidence(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    aws = next(f for f in findings if f.category == "secret.aws_access_key")
+    assert "AKIAIOSFODNN7EXAMPLE" not in aws.evidence
+    assert aws.evidence.startswith("AKIA") and aws.evidence.endswith("MPLE")
+    assert "..." in aws.evidence
+
+
+def test_s010_respects_allowlist(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    (tmp_path / ".mcp-scan-allowlist").write_text("config.py\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_allowlist_glob(tmp_path):
+    (tmp_path / "fixtures").mkdir()
+    (tmp_path / "fixtures" / "creds.py").write_text(
+        'AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    (tmp_path / ".mcp-scan-allowlist").write_text("fixtures/*\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_allowlist_comments_and_blank_lines(tmp_path):
+    (tmp_path / "config.py").write_text(
+        'AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    (tmp_path / ".mcp-scan-allowlist").write_text(
+        "# allow this test fixture\n"
+        "\n"
+        "config.py\n"
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_skips_unscannable_extensions(tmp_path):
+    """A binary-extension file is left alone even if it happens to contain
+    a secret-shaped substring."""
+    (tmp_path / "blob.bin").write_bytes(b"AKIAIOSFODNN7EXAMPLE\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_skips_venv_and_node_modules(tmp_path):
+    """The standard _SKIP_FRAGMENTS apply — third-party deps don't
+    contaminate the scan."""
+    (tmp_path / ".venv").mkdir()
+    (tmp_path / ".venv" / "leaked.py").write_text(
+        'KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+    )
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_skips_minified_long_lines(tmp_path):
+    """Lines over the size cap (1000 chars) aren't scanned — typical of
+    bundled/minified output where any secret-shaped substring is noise."""
+    long_line = "x" * 1500 + "AKIAIOSFODNN7EXAMPLE" + "x" * 100
+    (tmp_path / "bundle.js").write_text(long_line + "\n")
+    findings = check_hardcoded_secrets(tmp_path)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+def test_s010_skips_when_root_is_captured_json(tmp_path):
+    """Captured-mode (.json) scans skip REPO_RULES — there's no source
+    tree, so secret-scanning would be a category error."""
+    cap = tmp_path / "captured.json"
+    cap.write_text('{"tools": [{"name": "t", "description": "x"}]}')
+    findings = analyze_path(cap)
+    assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
+
+
+# MCP-S-014 — HTTP transport Origin/Host validation -------------------------
+
+from analyzer.rules import check_transport_origin_validation
+
+
+def _server_py(host_literal: str, *, mentions_origin: bool = False) -> str:
+    src = (
+        "import uvicorn\n"
+        "from fastapi import FastAPI\n"
+        "app = FastAPI()\n"
+        f"uvicorn.run(app, host={host_literal!r}, port=3000)\n"
+    )
+    if mentions_origin:
+        src += (
+            "# origin allowlist check applied via middleware above\n"
+        )
+    return src
+
+
+def test_s014_flags_bind_to_zero_zero_zero_zero(tmp_path):
+    (tmp_path / "server.py").write_text(_server_py("0.0.0.0"))
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_flags_bind_to_loopback(tmp_path):
+    (tmp_path / "server.py").write_text(_server_py("127.0.0.1"))
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_flags_bind_to_localhost_name(tmp_path):
+    (tmp_path / "server.py").write_text(_server_py("localhost"))
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_does_not_flag_public_ip(tmp_path):
+    (tmp_path / "server.py").write_text(_server_py("203.0.113.10"))
+    findings = check_transport_origin_validation(tmp_path)
+    assert not [f for f in findings if f.category == "transport.origin_unchecked"]
+
+
+def test_s014_suppresses_when_file_mentions_origin(tmp_path):
+    """Mention of 'origin' (case-insensitive) anywhere in the file means
+    the maintainer has thought about it — suppress the unchecked finding.
+    Real audits still confirm by reading code, but for the static heuristic
+    this is the documented opt-out shape."""
+    (tmp_path / "server.py").write_text(
+        _server_py("0.0.0.0", mentions_origin=True)
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert not [f for f in findings if f.category == "transport.origin_unchecked"]
+
+
+def test_s014_does_not_flag_asyncio_run(tmp_path):
+    """asyncio.run takes a coroutine, not a server bind. Don't false-fire."""
+    (tmp_path / "server.py").write_text(
+        "import asyncio\n"
+        "async def main():\n"
+        "    pass\n"
+        "asyncio.run(main())\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert findings == []
+
+
+def test_s014_flags_positional_host_arg(tmp_path):
+    """uvicorn.run(app, '0.0.0.0', 3000) — host as second positional arg."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "from fastapi import FastAPI\n"
+        "app = FastAPI()\n"
+        "uvicorn.run(app, '0.0.0.0', 3000)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_flags_cors_wildcard_with_credentials(tmp_path):
+    """The wildcard-with-creds CORS antipattern is wrong even if the bind
+    is non-rebindable — the intent reveals the maintainer wants
+    credentialed cross-origin access without restricting origins."""
+    (tmp_path / "server.py").write_text(
+        "from fastapi import FastAPI\n"
+        "from fastapi.middleware.cors import CORSMiddleware\n"
+        "app = FastAPI()\n"
+        "app.add_middleware(\n"
+        "    CORSMiddleware,\n"
+        "    allow_origins=['*'],\n"
+        "    allow_credentials=True,\n"
+        ")\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.cors_wildcard_credentials" for f in findings)
+
+
+def test_s014_does_not_flag_cors_specific_origins_with_credentials(tmp_path):
+    """Specific origin list + credentials is the correct shape."""
+    (tmp_path / "server.py").write_text(
+        "from fastapi import FastAPI\n"
+        "from fastapi.middleware.cors import CORSMiddleware\n"
+        "app = FastAPI()\n"
+        "app.add_middleware(\n"
+        "    CORSMiddleware,\n"
+        "    allow_origins=['https://app.example.com'],\n"
+        "    allow_credentials=True,\n"
+        ")\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert not [f for f in findings if f.category == "transport.cors_wildcard_credentials"]
+
+
+def test_s014_skips_non_python_files(tmp_path):
+    (tmp_path / "server.go").write_text("// uvicorn.run(app, host='0.0.0.0')\n")
+    findings = check_transport_origin_validation(tmp_path)
+    assert findings == []
+
+
+# MCP-S-012 — Roots capability declared but never consulted -----------------
+
+from analyzer.rules import check_roots_declared_but_unused
+
+
+def test_s012_flags_declared_without_consultation(tmp_path):
+    (tmp_path / "server.py").write_text(
+        "from mcp.types import RootsCapability\n"
+        "caps = RootsCapability(listChanged=True)\n"
+    )
+    findings = check_roots_declared_but_unused(tmp_path)
+    assert any(f.category == "capability.roots_declared_unused" for f in findings)
+
+
+def test_s012_silent_when_list_roots_is_called(tmp_path):
+    (tmp_path / "server.py").write_text(
+        "from mcp.types import RootsCapability\n"
+        "caps = RootsCapability(listChanged=True)\n"
+        "async def handler(session):\n"
+        "    roots = await session.list_roots()\n"
+        "    return roots\n"
+    )
+    findings = check_roots_declared_but_unused(tmp_path)
+    assert findings == []
+
+
+def test_s012_silent_when_no_declaration(tmp_path):
+    """A server that doesn't advertise roots support gets no S-012 finding —
+    even if it has filesystem operations. (S-006 covers the path-traversal
+    angle; S-012 is purely about capability/consultation mismatch.)"""
+    (tmp_path / "server.py").write_text(
+        "def read_file(path):\n"
+        "    return open(path).read()\n"
+    )
+    findings = check_roots_declared_but_unused(tmp_path)
+    assert findings == []
+
+
+def test_s012_cross_file_consultation_silences_finding(tmp_path):
+    """Declaration in one file, consultation in another — the rule
+    aggregates across the tree, so this is silent."""
+    (tmp_path / "caps.py").write_text(
+        "from mcp.types import RootsCapability\n"
+        "ROOTS = RootsCapability(listChanged=True)\n"
+    )
+    (tmp_path / "handler.py").write_text(
+        "async def serve(session):\n"
+        "    return await session.list_roots()\n"
+    )
+    findings = check_roots_declared_but_unused(tmp_path)
+    assert findings == []
+
+
+def test_s012_multiple_declarations_each_get_a_finding(tmp_path):
+    (tmp_path / "server.py").write_text(
+        "from mcp.types import RootsCapability\n"
+        "caps_a = RootsCapability(listChanged=True)\n"
+        "caps_b = RootsCapability(listChanged=False)\n"
+    )
+    findings = check_roots_declared_but_unused(tmp_path)
+    assert len(findings) == 2
+    assert {f.line for f in findings} == {2, 3}
+
+
+# MCP-S-013 — Prompt template injection ------------------------------------
+# Driven through the shared example_server.py fixture so the prompt
+# decorators participate in the same analyze_path call as the tool rules.
+
+def test_s013_flags_system_role_fstring(findings):
+    """f-string into a system message inside TextContent — high severity."""
+    s013 = {f.tool_name: f for f in findings if f.rule_id == "MCP-S-013"}
+    assert "vulnerable_prompt_system_role" in s013
+    assert s013["vulnerable_prompt_system_role"].severity == "high"
+
+
+def test_s013_flags_dict_assistant_role(findings):
+    s013 = {f.tool_name: f for f in findings if f.rule_id == "MCP-S-013"}
+    assert "vulnerable_prompt_dict_assistant" in s013
+    assert s013["vulnerable_prompt_dict_assistant"].severity == "high"
+
+
+def test_s013_flags_format_call(findings):
+    assert "vulnerable_prompt_format_call" in _names_by_rule(findings, "MCP-S-013")
+
+
+def test_s013_flags_string_concat(findings):
+    assert "vulnerable_prompt_concat" in _names_by_rule(findings, "MCP-S-013")
+
+
+def test_s013_does_not_flag_static_content(findings):
+    assert "safe_prompt_static" not in _names_by_rule(findings, "MCP-S-013")
+
+
+def test_s013_does_not_flag_user_role_interpolation(findings):
+    """User-role interpolation is conventional and silenced — otherwise the
+    rule fires on virtually every real-world prompt server."""
+    assert "safe_prompt_user_role" not in _names_by_rule(findings, "MCP-S-013")
+
+
+def test_s013_evidence_contains_parameter_name(findings):
+    s013 = [f for f in findings if f.rule_id == "MCP-S-013"
+            and f.tool_name == "vulnerable_prompt_dict_assistant"]
+    assert s013 and "query" in s013[0].message

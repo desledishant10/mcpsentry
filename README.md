@@ -10,7 +10,7 @@
 
 Finds vulnerabilities in MCP server implementations and tests AI agents against documented attack patterns. Static analyzer + dynamic harness + calibration corpus, all driven by a shared capability classifier.
 
-**Status:** alpha. 88 tests passing, 6 analyzer rules implemented, 5 calibration targets at 100% precision/recall, and a small but growing [findings/](findings/) corpus of real-world results — including one environment-dependent SSRF finding in an Anthropic reference server.
+**Status:** alpha. **151 tests passing, all 14 v0.1 static-analyzer rules shipped**, 10-target calibration corpus at 100% precision/recall (stable per spec), and a growing [findings/](findings/) corpus of real-world results — including two confirmed SSRF disclosures (one in an Anthropic reference server, demonstrated end-to-end on EC2 with real IAM credentials retrieved).
 
 ## Real findings to date
 
@@ -73,7 +73,7 @@ Two real findings on the official Anthropic reference server, surfaced from one 
 | `mcp-scan-lint-scenarios` | YAML lint for scenario files (catches null-byte smuggling, parse errors, schema violations) |
 | `mcp-scan-test` | Run a dynamic scenario against a real MCP server, optionally with a real LLM agent |
 
-### Static analyzer rules (9 of 14 v0.1 rules implemented)
+### Static analyzer rules (14 of 14 v0.1 rules implemented)
 
 | ID | What it catches | Mode |
 |----|---|---|
@@ -86,6 +86,11 @@ Two real findings on the official Anthropic reference server, surfaced from one 
 | `MCP-S-007` | Shell command injection (`subprocess(shell=True)`, `os.system`, `os.popen`) | per-tool, AST |
 | `MCP-S-008` | Database-query tool with no apparent input constraint (no parameterized-query mention, no schema pattern) | per-tool, heuristic on tools/list |
 | `MCP-S-009` | URL-fetching tool with no scheme/host allowlist (catches the SSRF class flagged dynamically by D-003) | per-tool, heuristic on tools/list |
+| `MCP-S-010` | Hardcoded API keys / tokens / PEM private keys / JWTs / `.env` files committed in source | repo-level, regex + filename |
+| `MCP-S-011` | Tool handler logs parameters, request data, headers, or env-derived secrets to stderr/stdout (debug-gated calls suppressed) | per-tool, AST |
+| `MCP-S-012` | `RootsCapability` referenced but `list_roots()` never called — declared containment guarantee not enforced | repo-level, AST |
+| `MCP-S-013` | Prompt template interpolates handler parameters into `system`/`assistant`-role messages without sanitization | repo-level, AST + light taint |
+| `MCP-S-014` | HTTP transport binds to loopback / `0.0.0.0` without Origin/Host validation (DNS rebinding); CORS `allow_origins=['*']` + `allow_credentials=True` antipattern | repo-level, AST |
 
 Every rule's lexicon decisions are commented with the calibration evidence that drove them. Spec for all 14 rules: [docs/static-rules.md](docs/static-rules.md).
 
@@ -118,12 +123,13 @@ Two agent driver implementations: `stub` (deterministic, plumbing tests) and `an
 
 ```
 mcp-scan/
-  analyzer/      Static analysis: Python AST + captured-JSON modes, 6 rules
+  analyzer/      Static analysis: Python AST + captured-JSON modes, 14 rules
   classifier/    Capability tagger: 8 tags, 8 param roles, Layer 1 (lexical)
   harness/       Dynamic test runner: direct + proxy modes, stub + Claude agents
-  scenarios/     Attack-scenario YAML library (6 in v0.1 seed set)
+  scenarios/     Attack-scenario YAML library (7 scenarios)
   calibration/   Ground-truth corpus + eval driver + capture/scaffold tools
-  findings/      Audit-trail record (5 entries; append-only)
+  findings/      Audit-trail record (8 entries; append-only)
+  disclosures/   Append-only log of outgoing coordinated-disclosure communications
   docs/          Specs: rules, scenarios, classifier, threat model
 ```
 
@@ -131,10 +137,10 @@ mcp-scan/
 
 | Phase | Planned window | Status |
 |---|---|---|
-| 1 — Static analyzer | weeks 1–6 | 9/14 rules implemented (S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009); Python AST + captured-JSON modes; CLI with severity filtering and CI-friendly exit codes |
-| 2 — Dynamic harness | weeks 7–14 | Substantially complete: direct + proxy modes, two agent drivers, 6 scenarios runnable end-to-end against real servers |
-| 3 — Real-world audit | weeks 15–20 | **Started.** 5 documented findings against 3 real Python servers from PyPI. Cloud reproduction of the SSRF finding is the next priority. |
-| 4 — Polish + publish | weeks 21–26 | Not started. README and reference docs complete; blog/whitepaper and conference submission pending audit volume. |
+| 1 — Static analyzer | weeks 1–6 | **Complete.** All 14 v0.1 rules implemented (S-001..S-014); Python AST + captured-JSON modes + repo-level scanning; CLI with severity filtering and CI-friendly exit codes |
+| 2 — Dynamic harness | weeks 7–14 | Substantially complete: direct + proxy modes, two agent drivers, 7 scenarios runnable end-to-end against real servers |
+| 3 — Real-world audit | weeks 15–20 | **In flight.** 8 documented findings against 7 PyPI-published servers. Two SSRF disclosures filed 2026-05-12 — embargo 2026-08-10. Cloud-side reproduction completed (EC2, real IAM credentials retrieved). |
+| 4 — Polish + publish | weeks 21–26 | Embargo-day blog draft and EC2 audit runbook in [docs/](docs/). PyPI release + conference submission pending. |
 
 ## Scope and non-goals
 
@@ -148,7 +154,6 @@ In scope for v1:
 Not yet implemented (planned):
 - TypeScript analyzer support (tree-sitter; would unlock 5 queued TS calibration targets)
 - SSE / Streamable HTTP transports in the harness
-- The other 8 analyzer rules from the v0.1 spec
 - DNS / filesystem canaries (HTTP only today)
 
 Out of scope for v1 (intentional — these are good follow-ups, not features):
@@ -161,11 +166,11 @@ Out of scope for v1 (intentional — these are good follow-ups, not features):
 
 | | |
 |---|---|
-| Tests passing | **106 / 106** |
-| Analyzer rules | 9 of 14 (S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009) |
+| Tests passing | **151 / 151** |
+| Analyzer rules | **14 of 14** (S-001..S-014) — v0.1 spec complete |
 | Dynamic scenarios | 7 (5 from v0.1 seed set + D-006 subtle-injection + D-007 cloud-metadata-exfil) |
 | Calibration corpus | **10 labeled targets, 81 tools, 100/100 precision-recall** (8 verified by direct capture) — hit the spec's "stable" threshold |
-| Real-world finding entries | 5 (1 vulnerability, 3 defense, 1 informational) |
+| Real-world finding entries | **8** (2 vulnerabilities with disclosures filed, 4 defense, 2 informational) |
 | Packages | 5 (`analyzer`, `classifier`, `harness`, `calibration` + `scenarios` as YAML) |
 | Console scripts | 8 (added `mcp-scan-audit` — single-command audit) |
 
@@ -198,7 +203,7 @@ Attack surface enumerated by MCP primitive (tools, resources, prompts, sampling,
 
 Findings against third-party servers follow coordinated disclosure: maintainers receive 90 days from notification before public release, extended if a fix is in active development. Reporters using MCP-Scan are expected to follow the same practice. See each finding entry's `## Disclosure` section for case-specific details.
 
-A formal `SECURITY.md` with policy + contact will land before any disclosure is filed.
+Policy + contact: [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
@@ -210,4 +215,4 @@ Issue discussion and ruleset/scenario proposals are welcome. Highest-leverage pl
 
 ## License
 
-To be selected before first public release. Likely Apache 2.0.
+Apache 2.0 — see [LICENSE](LICENSE).

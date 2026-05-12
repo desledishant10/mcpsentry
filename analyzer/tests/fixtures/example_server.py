@@ -8,21 +8,39 @@ the real `mcp` package on the path.
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 
 class _MCP:
-    """Dummy FastMCP-shaped object so the @mcp.tool() decorator parses."""
+    """Dummy FastMCP-shaped object so the @mcp.tool() / @mcp.prompt()
+    decorators parse without the real `mcp` package on the path."""
 
     def tool(self):
         def decorator(f):
             return f
         return decorator
 
+    def prompt(self):
+        def decorator(f):
+            return f
+        return decorator
+
 
 mcp = _MCP()
+
+
+class PromptMessage:                                    # noqa: D401
+    """Stub for MCP-S-013 fixtures — see module docstring."""
+    def __init__(self, **_kwargs): pass
+
+
+class TextContent:                                      # noqa: D401
+    """Stub for MCP-S-013 fixtures — see module docstring."""
+    def __init__(self, **_kwargs): pass
 
 
 # ---------------------------------------------------------------------------
@@ -99,3 +117,104 @@ def vulnerable_os_popen(cmd: str) -> str:
 def safe_subprocess(args_list: list) -> str:
     """Runs a subprocess with an array argument (no shell)."""
     return subprocess.run(args_list, shell=False, capture_output=True).stdout.decode()
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-011 — sensitive-data logging fixtures
+# ---------------------------------------------------------------------------
+
+logger = logging.getLogger(__name__)
+DEBUG = False
+
+
+@mcp.tool()
+def vulnerable_log_param(query: str) -> str:
+    """Searches for a query."""
+    print(f"received query: {query}")
+    return query
+
+
+@mcp.tool()
+def vulnerable_log_environ(name: str) -> str:
+    """Looks up an env-derived secret by name."""
+    logger.info("token: %s", os.environ["API_TOKEN"])
+    return name
+
+
+@mcp.tool()
+def vulnerable_log_header_attr(req) -> str:
+    """Handles an incoming request."""
+    logger.error("got headers: %s", req.headers)
+    return "ok"
+
+
+@mcp.tool()
+def vulnerable_log_stderr_write(token: str) -> str:
+    """Stores a token."""
+    sys.stderr.write(f"storing {token}\n")
+    return "stored"
+
+
+@mcp.tool()
+def safe_log_constant(name: str) -> str:
+    """No sensitive data printed."""
+    print("tool invoked")
+    return name
+
+
+@mcp.tool()
+def safe_log_debug_gated(token: str) -> str:
+    """Debug-only token log — gated behind module-level DEBUG flag."""
+    if DEBUG:
+        print(f"token: {token}")
+    return token
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-013 — prompt template injection fixtures
+# ---------------------------------------------------------------------------
+
+@mcp.prompt()
+def vulnerable_prompt_system_role(code: str) -> list:
+    """System message interpolates a parameter via TextContent f-string."""
+    return [
+        PromptMessage(
+            role="system",
+            content=TextContent(type="text", text=f"Review this code: {code}"),
+        ),
+    ]
+
+
+@mcp.prompt()
+def vulnerable_prompt_dict_assistant(query: str) -> list:
+    """Assistant message via dict literal with f-string content."""
+    return [{"role": "assistant", "content": f"You previously said: {query}"}]
+
+
+@mcp.prompt()
+def vulnerable_prompt_format_call(snippet: str) -> list:
+    """System message built via .format() interpolation."""
+    return [
+        {
+            "role": "system",
+            "content": "Snippet:\n{}".format(snippet),
+        }
+    ]
+
+
+@mcp.prompt()
+def vulnerable_prompt_concat(name: str) -> list:
+    """System message built by string concatenation."""
+    return [{"role": "system", "content": "Hello, " + name + "."}]
+
+
+@mcp.prompt()
+def safe_prompt_static(name: str) -> list:
+    """Static content only — parameter is unused. No finding."""
+    return [{"role": "system", "content": "You are a helpful assistant."}]
+
+
+@mcp.prompt()
+def safe_prompt_user_role(query: str) -> list:
+    """User-role interpolation is conventional — rule silences it."""
+    return [{"role": "user", "content": f"User asked: {query}"}]

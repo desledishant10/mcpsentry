@@ -1,15 +1,24 @@
-"""Detection rules for the static analyzer (v0.1: S-001, S-006, S-007).
+"""Detection rules for the static analyzer (v0.1: S-001..S-014).
 
-Each rule is a function `(tool: DiscoveredTool) -> list[Finding]`.
+Three rule shapes:
+- `RULES`        — per-tool. Signature: `(tool: DiscoveredTool) -> list[Finding]`.
+- `SERVER_RULES` — full tool set. Signature: `(tools: list[DiscoveredTool]) -> list[Finding]`.
+- `REPO_RULES`   — source tree root. Signature: `(root: Path) -> list[Finding]`.
+                   Used for rules that scan files outside individual tool handlers
+                   (transport config, repo-wide secrets, server capability declarations).
+
 Spec: ../docs/static-rules.md.
 """
 
 from __future__ import annotations
 
 import ast
+import fnmatch
 import re
+from pathlib import Path
 from typing import Callable
 
+from .discover import _SKIP_FRAGMENTS
 from .types import DiscoveredTool, Finding
 
 # ---------------------------------------------------------------------------
@@ -602,7 +611,812 @@ def check_overbroad_capability_surface(tools: list[DiscoveredTool]) -> list[Find
     return findings
 
 
-# Rule registry — iterated by the analyzer driver.
+# ---------------------------------------------------------------------------
+# MCP-S-011 — Sensitive data logged to stderr/stdout
+# ---------------------------------------------------------------------------
+
+# Log-call shapes. The rule flags any call whose function matches one of
+# these AND whose arguments reference a sensitive-shaped name.
+_LOG_BARE_FUNCS = {"print"}
+_LOG_METHOD_NAMES = {
+    "info", "debug", "warning", "warn", "error", "critical", "exception", "log",
+    # sys.stderr.write / sys.stdout.write — caught via a separate path below.
+}
+_STD_STREAMS = {"stderr", "stdout"}
+
+# Names that suggest sensitive payload content. Matched case-insensitively
+# as whole words against argument identifiers and attribute names.
+# Calibration-driven; pulled from real MCP server source review:
+# - `request` / `req` — full HTTP request objects
+# - `header(s)` — auth headers, cookies, bearer tokens
+# - `token`, `auth`, `bearer`, `credential`, `cred` — credentials
+# - `secret`, `key`, `api_key`, `apikey` — secrets
+# - `password`, `passwd`, `pwd` — passwords
+# - `cookie`, `session` — session material
+_SENSITIVE_NAME_RE = re.compile(
+    r"(?:^|_)(?:"
+    r"request|req|header|headers|"
+    r"auth|token|bearer|credential|cred|"
+    r"secret|key|apikey|api_key|"
+    r"password|passwd|pwd|"
+    r"cookie|session"
+    r")(?:_|$)",
+    re.IGNORECASE,
+)
+
+# Conditional-test phrases that indicate debug-gated logging. When a log
+# call lives inside `if debug:` / `if verbose:` / `if TRACE:` / etc., the
+# rule suppresses the finding — the maintainer has explicitly gated it.
+_DEBUG_GATE_RE = re.compile(r"\b(?:debug|verbose|trace)\b", re.IGNORECASE)
+
+
+def check_sensitive_logging(tool: DiscoveredTool) -> list[Finding]:
+    """MCP-S-011 — Tool/request data logged to stderr.
+
+    MCP servers running via stdio have their stderr captured by the host
+    process and frequently surfaced to the end user or written to host
+    logs. Anything sensitive logged at INFO/DEBUG/ERROR level — request
+    payloads, auth headers, env-var-derived secrets — is therefore
+    user-visible or persisted.
+
+    Detection: per-tool AST scan for log-shaped calls (`print`,
+    `logging.X`, `logger.X`, `sys.stderr.write`, `console.error`) whose
+    arguments reference (a) a tool parameter, (b) a sensitive-named
+    identifier, or (c) `os.environ[...]` / `os.getenv(...)`. Calls inside
+    `if debug:` / `if verbose:` blocks are skipped — that's the
+    documented opt-in shape.
+    """
+    fn = tool.function_node
+    if fn is None:
+        return []
+    gated_lines = _collect_debug_gated_lines(fn)
+
+    findings: list[Finding] = []
+    seen_lines: set[int] = set()
+
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.Call):
+            continue
+        if not _is_log_call(node):
+            continue
+        if node.lineno in gated_lines or node.lineno in seen_lines:
+            continue
+
+        sensitive_signals = _collect_sensitive_signals(node, tool.parameters)
+        if not sensitive_signals:
+            continue
+
+        seen_lines.add(node.lineno)
+        findings.append(Finding(
+            rule_id="MCP-S-011", severity="medium",
+            category="tool.sensitive_logging",
+            file=tool.source_path, line=node.lineno, tool_name=tool.name,
+            message=(
+                f"Tool logs potentially sensitive data ({', '.join(sensitive_signals)}). "
+                f"MCP hosts typically capture stderr and may surface or persist it."
+            ),
+            evidence=_safe_unparse(node),
+        ))
+    return findings
+
+
+def _is_log_call(call: ast.Call) -> bool:
+    f = call.func
+    if isinstance(f, ast.Name) and f.id in _LOG_BARE_FUNCS:
+        return True
+    if isinstance(f, ast.Attribute):
+        # logging.info / logger.debug / log.error / console.error
+        if f.attr in _LOG_METHOD_NAMES:
+            return True
+        # sys.stderr.write(...) / sys.stdout.write(...)
+        if f.attr == "write" and isinstance(f.value, ast.Attribute):
+            if f.value.attr in _STD_STREAMS:
+                return True
+    return False
+
+
+def _collect_sensitive_signals(call: ast.Call, tool_params: list[str]) -> list[str]:
+    """Return human-readable signal labels for a log call's args, or [].
+
+    Distinguishes three categories so the finding message tells the
+    auditor *what* triggered it: tool parameter, sensitive-named
+    identifier, or environment-variable access.
+    """
+    signals: list[str] = []
+    seen: set[str] = set()
+    arg_nodes = list(call.args) + [kw.value for kw in call.keywords]
+
+    for arg in arg_nodes:
+        for sub in ast.walk(arg):
+            if isinstance(sub, ast.Name):
+                ident = sub.id
+                if ident in tool_params and f"param:{ident}" not in seen:
+                    signals.append(f"param:{ident}")
+                    seen.add(f"param:{ident}")
+                elif _SENSITIVE_NAME_RE.search(ident) and f"name:{ident}" not in seen:
+                    signals.append(f"name:{ident}")
+                    seen.add(f"name:{ident}")
+            elif isinstance(sub, ast.Attribute):
+                # request.headers, req.body, ctx.session, etc.
+                if _SENSITIVE_NAME_RE.search(sub.attr) and f"attr:{sub.attr}" not in seen:
+                    signals.append(f"attr:{sub.attr}")
+                    seen.add(f"attr:{sub.attr}")
+            elif isinstance(sub, ast.Subscript):
+                # os.environ["..."] — flag as env access
+                v = sub.value
+                if isinstance(v, ast.Attribute) and v.attr == "environ":
+                    if "env:os.environ" not in seen:
+                        signals.append("env:os.environ")
+                        seen.add("env:os.environ")
+            elif isinstance(sub, ast.Call):
+                f = sub.func
+                if isinstance(f, ast.Attribute) and f.attr == "getenv":
+                    if "env:os.getenv" not in seen:
+                        signals.append("env:os.getenv")
+                        seen.add("env:os.getenv")
+    return signals
+
+
+def _collect_debug_gated_lines(fn) -> set[int]:
+    """Line numbers inside an `if <debug-shaped>:` body.
+
+    Only the body branch is considered gated. The `else` branch is the
+    production path and any log calls there still fire.
+    """
+    lines: set[int] = set()
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.If):
+            continue
+        try:
+            test_src = ast.unparse(node.test)
+        except Exception:                                       # noqa: BLE001
+            continue
+        if not _DEBUG_GATE_RE.search(test_src):
+            continue
+        for stmt in node.body:
+            for child in ast.walk(stmt):
+                if hasattr(child, "lineno"):
+                    lines.add(child.lineno)
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-010 — Hardcoded secrets and committed .env files
+# ---------------------------------------------------------------------------
+
+# Named-format secrets only. Generic high-entropy detection (any string with
+# Shannon entropy > N) is too FP-heavy without per-codebase tuning — every
+# hash, UUID, and base64-encoded fingerprint trips it. The named patterns
+# below are the ones maintainers actually leak: API keys, OAuth tokens,
+# Stripe live keys, PEM private keys, JWTs.
+# Order matters: more specific patterns must precede broader ones, because
+# `check_hardcoded_secrets` breaks on the first match per line. The OpenAI
+# pattern is intentionally broad (their key format has changed several
+# times); anthropic / stripe / slack must appear first so their tokens
+# aren't swallowed by it.
+_SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("aws_access_key",     re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("github_pat_classic", re.compile(r"\bghp_[A-Za-z0-9]{36}\b")),
+    ("github_pat_fine",    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{82}\b")),
+    ("github_oauth_token", re.compile(r"\bgh[ous]_[A-Za-z0-9]{36}\b")),
+    ("anthropic_api_key",  re.compile(r"\bsk-ant-(?:api|admin)\d*-[A-Za-z0-9_-]{20,}\b")),
+    ("stripe_live_secret", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{24,}\b")),
+    ("slack_bot_token",    re.compile(r"\bxox[bpaer]-[A-Za-z0-9-]{20,}\b")),
+    ("openai_api_key",     re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b")),
+    ("google_api_key",     re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    ("private_key_pem",    re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----")),
+    ("jwt",                re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")),
+]
+
+# Extensions worth scanning for secrets. Skip binary formats, images,
+# lockfiles, vendored bundles. The list intentionally errs on the side of
+# scanning more text formats — false positives are cheap, false negatives
+# are how secrets leak.
+_SECRET_SCAN_EXTS = frozenset({
+    ".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+    ".yaml", ".yml", ".json", ".toml", ".txt", ".md", ".cfg", ".ini",
+    ".env", ".sh", ".bash", ".zsh", ".fish", ".rs", ".go", ".rb",
+    ".java", ".kt", ".scala", ".php", ".c", ".h", ".cpp", ".cs",
+})
+
+# Cap individual file scan size — lockfiles, vendored bundles, generated
+# code aren't where committed secrets live, and reading them slows scans.
+_SECRET_LARGEST_FILE = 1024 * 1024        # 1 MiB
+_SECRET_LONGEST_LINE = 1000               # skip minified content
+
+# `.env` files commonly hold credentials. Flag presence in source tree.
+# Sample/example/template variants are the documented-safe convention.
+_DOTENV_RE = re.compile(r"^\.env(\..+)?$")
+_DOTENV_SAFE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".defaults")
+
+# Path-glob allowlist file at the scan root. One pattern per line, `#`
+# comments ignored. Used to suppress known-safe matches without disabling
+# the rule.
+_SECRET_ALLOWLIST_FILENAME = ".mcp-scan-allowlist"
+
+
+def check_hardcoded_secrets(root: Path) -> list[Finding]:
+    """MCP-S-010 — committed secrets and `.env` files in the source tree.
+
+    Scans for:
+    1. Named-format secret strings (AWS, GitHub, OpenAI, Anthropic, Stripe,
+       Slack, Google API, PEM private keys, JWTs).
+    2. Presence of `.env*` files in the tree, excluding documented-safe
+       variants (`.env.example`, `.env.sample`, `.env.template`, `.env.dist`).
+
+    Necessary-but-not-sufficient: a hit on a fixture file is a finding the
+    auditor confirms by reading the file. Suppress known-safe matches by
+    listing path globs in `.mcp-scan-allowlist` at the scan root.
+    """
+    findings: list[Finding] = []
+    allowlist = _load_secret_allowlist(root)
+
+    for f in _walk_repo_files(root):
+        rel = _relpath(f, root)
+        if _is_allowlisted(rel, allowlist):
+            continue
+
+        # .env-style files: flag presence (don't scan content — would
+        # double-report every secret inside).
+        if _DOTENV_RE.match(f.name) and not f.name.endswith(_DOTENV_SAFE_SUFFIXES):
+            findings.append(Finding(
+                rule_id="MCP-S-010", severity="high",
+                category="secret.dotenv_committed",
+                file=rel, line=0, tool_name="<repo>",
+                message=(
+                    f"Environment file {f.name!r} present in source tree. "
+                    f"`.env*` files commonly hold credentials — confirm "
+                    f".gitignore covers it and it was never committed."
+                ),
+                evidence="",
+            ))
+            continue
+
+        if f.suffix.lower() not in _SECRET_SCAN_EXTS:
+            continue
+        try:
+            if f.stat().st_size > _SECRET_LARGEST_FILE:
+                continue
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if len(line) > _SECRET_LONGEST_LINE:
+                continue
+            for kind, pat in _SECRET_PATTERNS:
+                m = pat.search(line)
+                if m is None:
+                    continue
+                tok = m.group(0)
+                findings.append(Finding(
+                    rule_id="MCP-S-010", severity="high",
+                    category=f"secret.{kind}",
+                    file=rel, line=lineno, tool_name="<repo>",
+                    message=f"Possible {kind.replace('_', ' ')} hardcoded in source.",
+                    evidence=_redact_secret(tok),
+                ))
+                break    # one finding per line — first match wins
+
+    return findings
+
+
+def _walk_repo_files(root: Path):
+    if root.is_file():
+        yield root
+        return
+    if not root.is_dir():
+        return
+    for f in root.rglob("*"):
+        s = str(f)
+        if any(frag in s for frag in _SKIP_FRAGMENTS):
+            continue
+        if f.is_file():
+            yield f
+
+
+def _relpath(f: Path, root: Path) -> str:
+    # Directory scan: paths reported relative to the scan root.
+    # Single-file scan: report the path as given so REPO_RULES findings
+    # match per-tool findings (which use `discover_tools_in_path`'s string
+    # form of the user-supplied path).
+    if root.is_dir():
+        try:
+            return str(f.relative_to(root))
+        except ValueError:
+            return str(f)
+    return str(f)
+
+
+def _load_secret_allowlist(root: Path) -> list[str]:
+    base = root if root.is_dir() else root.parent
+    p = base / _SECRET_ALLOWLIST_FILENAME
+    if not p.exists():
+        return []
+    return [
+        ln.strip() for ln in p.read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+
+
+def _is_allowlisted(rel: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
+
+
+def _redact_secret(tok: str) -> str:
+    if len(tok) <= 8:
+        return "***"
+    return f"{tok[:4]}...{tok[-4:]}"
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-014 — HTTP transport missing Origin/Host validation (DNS rebinding)
+# ---------------------------------------------------------------------------
+
+# Hosts whose binding makes the server reachable from the local browser
+# context and therefore exploitable via DNS rebinding if Origin is not
+# checked. `0.0.0.0` is the most dangerous (all interfaces), but loopback
+# is also rebindable from the browser's perspective: an attacker-controlled
+# domain that resolves to 127.0.0.1 after a TTL flip can issue requests.
+_REBINDABLE_HOSTS = {
+    "0.0.0.0", "127.0.0.1", "localhost", "::", "::1", "[::]", "[::1]",
+}
+
+_HOST_KW_NAMES = ("host", "bind", "address", "hostname")
+
+# Bare `run` / `serve` without a module prefix is too ambiguous to act on
+# (could be any user-defined function), so we require an attribute call.
+_SERVER_BIND_METHODS = {"run", "serve", "run_sync"}
+
+# Owners we *do not* want to confuse with HTTP server binds. `asyncio.run`
+# wraps a coroutine, not a server start.
+_NOT_SERVER_BIND_OWNERS = {"asyncio", "trio", "anyio"}
+
+
+def check_transport_origin_validation(root: Path) -> list[Finding]:
+    """MCP-S-014 — HTTP transport without Origin/Host validation.
+
+    MCP servers using SSE or Streamable HTTP transports are typically run
+    behind a Starlette/FastAPI app via `uvicorn.run(...)`. When the bind
+    address is loopback/`0.0.0.0` AND no middleware inspects the Origin
+    header, the server is exploitable via DNS rebinding — a browser
+    visiting an attacker-controlled domain can issue requests to the
+    local MCP endpoint as if it were same-origin.
+
+    Heuristic (necessary, not sufficient): for each .py file with a
+    rebindable-host server bind, flag if the file contains no mention of
+    "origin" (case-insensitive). Also flag the CORS wildcard-with-
+    credentials antipattern regardless of bind host.
+    """
+    findings: list[Finding] = []
+    for f in _walk_repo_files(root):
+        if f.suffix != ".py":
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+
+        rel = _relpath(f, root)
+        binds = _find_rebindable_binds(tree)
+        mentions_origin = _file_mentions_origin(text)
+
+        if binds and not mentions_origin:
+            for bind_node, host_value in binds:
+                findings.append(Finding(
+                    rule_id="MCP-S-014", severity="high",
+                    category="transport.origin_unchecked",
+                    file=rel, line=bind_node.lineno, tool_name="<transport>",
+                    message=(
+                        f"HTTP transport binds to {host_value!r} but the source "
+                        f"file contains no reference to 'Origin' header "
+                        f"validation. Local MCP servers bound to loopback / "
+                        f"0.0.0.0 are exploitable via DNS rebinding when "
+                        f"Origin is not checked."
+                    ),
+                    evidence=_safe_unparse(bind_node)[:160],
+                ))
+
+        # Wildcard CORS + credentials is wrong independent of bind host.
+        for cors_node in _find_cors_wildcard_with_credentials(tree):
+            findings.append(Finding(
+                rule_id="MCP-S-014", severity="high",
+                category="transport.cors_wildcard_credentials",
+                file=rel, line=cors_node.lineno, tool_name="<transport>",
+                message=(
+                    "CORS middleware combines allow_origins=['*'] with "
+                    "allow_credentials=True. Browsers reject this "
+                    "combination at runtime, but the intent suggests "
+                    "credentialed cross-origin access — either restrict "
+                    "origins to an explicit allowlist or remove credentials."
+                ),
+                evidence=_safe_unparse(cors_node)[:160],
+            ))
+    return findings
+
+
+def _find_rebindable_binds(tree: ast.AST) -> list[tuple[ast.Call, str]]:
+    out: list[tuple[ast.Call, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not _is_server_bind_call(node):
+            continue
+        host = _extract_host_value(node)
+        if host is None:
+            continue
+        if host.lower() in _REBINDABLE_HOSTS:
+            out.append((node, host))
+    return out
+
+
+def _is_server_bind_call(call: ast.Call) -> bool:
+    f = call.func
+    if not isinstance(f, ast.Attribute):
+        return False
+    if f.attr not in _SERVER_BIND_METHODS:
+        return False
+    if isinstance(f.value, ast.Name) and f.value.id in _NOT_SERVER_BIND_OWNERS:
+        return False
+    return True
+
+
+def _extract_host_value(call: ast.Call) -> str | None:
+    for kw in call.keywords:
+        if kw.arg in _HOST_KW_NAMES:
+            v = kw.value
+            if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                return v.value
+    # Common positional form: uvicorn.run(app, "0.0.0.0", 3000)
+    if len(call.args) >= 2:
+        v = call.args[1]
+        if isinstance(v, ast.Constant) and isinstance(v.value, str):
+            return v.value
+    return None
+
+
+def _file_mentions_origin(text: str) -> bool:
+    return bool(re.search(r"\borigin\b", text, re.IGNORECASE))
+
+
+def _find_cors_wildcard_with_credentials(tree: ast.AST) -> list[ast.Call]:
+    """Calls that configure CORS with allow_origins=['*'] + allow_credentials=True."""
+    out: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not _looks_like_cors_setup(node):
+            continue
+        kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        ao, ac = kwargs.get("allow_origins"), kwargs.get("allow_credentials")
+        if ao is None or ac is None:
+            continue
+        if not (isinstance(ac, ast.Constant) and ac.value is True):
+            continue
+        if not isinstance(ao, ast.List):
+            continue
+        if not any(isinstance(e, ast.Constant) and e.value == "*" for e in ao.elts):
+            continue
+        out.append(node)
+    return out
+
+
+def _looks_like_cors_setup(call: ast.Call) -> bool:
+    f = call.func
+    if isinstance(f, ast.Name) and f.id == "CORSMiddleware":
+        return True
+    if isinstance(f, ast.Attribute) and f.attr == "add_middleware":
+        if call.args and isinstance(call.args[0], ast.Name):
+            return call.args[0].id == "CORSMiddleware"
+    return False
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-012 — Roots capability declared but never consulted
+# ---------------------------------------------------------------------------
+
+# In the MCP Python SDK, `RootsCapability` is the named constructor a
+# server uses to express it cares about (client-declared) roots; the
+# server then enforces containment by calling `list_roots()` on the
+# session and constraining filesystem paths to the returned set. A
+# declaration without any `list_roots()` call means the server claims
+# roots awareness but doesn't act on it.
+_ROOTS_CAP_NAME = "RootsCapability"
+_ROOTS_CONSULT_NAME = "list_roots"
+
+
+def check_roots_declared_but_unused(root: Path) -> list[Finding]:
+    """MCP-S-012 — `RootsCapability` referenced but `list_roots()` never called.
+
+    Server-side, supporting the MCP `roots` capability is a two-step
+    contract: declare you respect roots (via `RootsCapability` or an
+    equivalent dict shape), and consult them at request time (via
+    `session.list_roots()`). Code that does the first but not the second
+    is either an oversight or a misleading capability advertisement —
+    filesystem operations escape whatever scope the client thinks it
+    declared.
+
+    Detection (v0.1, narrow): cross-file scan. Collect every
+    `RootsCapability(...)` constructor call as a declaration site, and
+    every `list_roots()` call as a consultation. If any declarations
+    exist and zero consultations exist, flag each declaration site. Dict
+    literal forms (`{"roots": ...}`) and TS equivalents are out of scope
+    for v0.1 — calibration data will guide expansion.
+    """
+    declared: list[tuple[str, int, str]] = []
+    consulted = False
+
+    for f in _walk_repo_files(root):
+        if f.suffix != ".py":
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+
+        rel = _relpath(f, root)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _callable_simple_name(node.func)
+            if name == _ROOTS_CAP_NAME:
+                declared.append((rel, node.lineno, _safe_unparse(node)))
+            elif name == _ROOTS_CONSULT_NAME:
+                consulted = True
+
+    if not declared or consulted:
+        return []
+    return [
+        Finding(
+            rule_id="MCP-S-012", severity="medium",
+            category="capability.roots_declared_unused",
+            file=rel, line=lineno, tool_name="<server>",
+            message=(
+                "Server references the `roots` capability but the source "
+                "tree contains no call to `list_roots()`. Either consult "
+                "roots when handling filesystem operations or drop the "
+                "capability declaration — currently it advertises a "
+                "containment guarantee that isn't enforced."
+            ),
+            evidence=ev[:160],
+        )
+        for rel, lineno, ev in declared
+    ]
+
+
+def _callable_simple_name(fn) -> str | None:
+    """Return the simple name of a callable AST node (Name or Attribute)."""
+    if isinstance(fn, ast.Name):
+        return fn.id
+    if isinstance(fn, ast.Attribute):
+        return fn.attr
+    return None
+
+
+# ---------------------------------------------------------------------------
+# MCP-S-013 — Prompt template interpolation without sanitization
+# ---------------------------------------------------------------------------
+
+# Message-constructor names recognized by the rule. Covers the official
+# MCP Python SDK (`PromptMessage`) plus the role-typed helpers some
+# servers wrap around it.
+_PROMPT_MSG_CTOR_NAMES = {
+    "PromptMessage", "Message",
+    "SystemMessage", "UserMessage", "AssistantMessage",
+}
+
+# Content-wrapping constructors. We unwrap one level of these so an
+# interpolated f-string inside `TextContent(text=...)` is still seen.
+_CONTENT_WRAPPER_CTOR_NAMES = {
+    "TextContent", "ImageContent", "AudioContent", "EmbeddedResource",
+}
+
+# Roles that warrant a finding. `user` is intentionally excluded: every
+# real-world prompt server interpolates user input into user-role
+# messages — flagging that drowns the signal. System and assistant
+# messages are the high-stakes injection targets (the model treats their
+# content as authority).
+_FLAGGED_PROMPT_ROLES = {"system", "assistant"}
+
+
+def check_prompt_injection(root: Path) -> list[Finding]:
+    """MCP-S-013 — User-controlled prompt arguments reach a system/assistant
+    message via unescaped interpolation.
+
+    Scans every Python file for functions decorated `@<x>.prompt()`. For
+    each, inspects message constructors (`PromptMessage`, `Message`, role-
+    typed helpers) and dict-literal messages (`{"role": ..., "content":
+    ...}`). If the content is built by interpolating one of the prompt
+    function's parameters (f-string, `.format`, `%`, or `+` concat), and
+    the message role is `system` or `assistant`, emit a high-severity
+    finding. Unknown/dynamic roles emit medium. User-role interpolation
+    is silenced — too conventional to be useful signal.
+
+    v0.1 limitations: no sanitizer/allowlist recognition (every flagged
+    interpolation is reported; auditors confirm by reading code). One
+    level of content-wrapper unwrapping (`TextContent(text=...)`) — deeper
+    nesting is rare in practice.
+    """
+    findings: list[Finding] = []
+    for f in _walk_repo_files(root):
+        if f.suffix != ".py":
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+
+        rel = _relpath(f, root)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not any(_is_prompt_decorator(d) for d in node.decorator_list):
+                continue
+            findings.extend(_scan_prompt_handler(node, rel))
+    return findings
+
+
+def _is_prompt_decorator(dec: ast.expr) -> bool:
+    target = dec.func if isinstance(dec, ast.Call) else dec
+    if isinstance(target, ast.Attribute):
+        return target.attr == "prompt"
+    if isinstance(target, ast.Name):
+        return target.id == "prompt"
+    return False
+
+
+def _scan_prompt_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, rel: str) -> list[Finding]:
+    params = [a.arg for a in fn.args.args if a.arg != "self"]
+    findings: list[Finding] = []
+    seen_lines: set[int] = set()
+
+    for node in ast.walk(fn):
+        role: str | None = None
+        content_node: ast.expr | None = None
+        report_line: int = 0
+
+        if isinstance(node, ast.Call):
+            name = _callable_simple_name(node.func)
+            if name not in _PROMPT_MSG_CTOR_NAMES:
+                continue
+            kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+            role_node = kwargs.get("role")
+            content_node = kwargs.get("content")
+            role = _extract_role_constant(role_node) or _role_from_ctor_name(name)
+            report_line = node.lineno
+        elif isinstance(node, ast.Dict):
+            if not _looks_like_message_dict(node):
+                continue
+            role, content_node = _extract_dict_message(node)
+            report_line = node.lineno
+        else:
+            continue
+
+        if content_node is None:
+            continue
+        if role == "user":
+            continue
+
+        interpolated = _find_interpolated_params(content_node, params)
+        if not interpolated:
+            continue
+        if report_line in seen_lines:
+            continue
+        seen_lines.add(report_line)
+
+        severity = "high" if role in _FLAGGED_PROMPT_ROLES else "medium"
+        role_desc = role if role else "<dynamic-or-unknown>"
+        findings.append(Finding(
+            rule_id="MCP-S-013", severity=severity,
+            category="prompt.template_injection",
+            file=rel, line=report_line, tool_name=fn.name,
+            message=(
+                f"Prompt {role_desc!r}-role message interpolates parameter(s) "
+                f"{interpolated!r} without sanitization. User-controlled text "
+                f"reaches a message the model treats as authority — verify "
+                f"that input is escaped or restricted before this call."
+            ),
+            evidence=_safe_unparse(node)[:160],
+        ))
+    return findings
+
+
+def _looks_like_message_dict(d: ast.Dict) -> bool:
+    keys = {k.value for k in d.keys if isinstance(k, ast.Constant)}
+    return "role" in keys and "content" in keys
+
+
+def _extract_dict_message(d: ast.Dict) -> tuple[str | None, ast.expr | None]:
+    role: str | None = None
+    content: ast.expr | None = None
+    for k, v in zip(d.keys, d.values):
+        if not isinstance(k, ast.Constant):
+            continue
+        if k.value == "role":
+            role = _extract_role_constant(v)
+        elif k.value == "content":
+            content = v
+    return role, content
+
+
+def _extract_role_constant(node: ast.expr | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value.lower()
+    return None
+
+
+def _role_from_ctor_name(name: str) -> str | None:
+    if name == "SystemMessage":
+        return "system"
+    if name == "UserMessage":
+        return "user"
+    if name == "AssistantMessage":
+        return "assistant"
+    return None
+
+
+def _find_interpolated_params(content: ast.expr, params: list[str]) -> list[str]:
+    """Return ordered, deduplicated param names that flow into `content`.
+
+    Recognizes: f-strings, `.format(...)`, `%`-format, `+`-concat. Unwraps
+    one layer of MCP content wrappers (`TextContent(text=...)` etc.).
+    """
+    # Unwrap content-wrapper constructors one level.
+    if isinstance(content, ast.Call):
+        name = _callable_simple_name(content.func)
+        if name in _CONTENT_WRAPPER_CTOR_NAMES:
+            kwargs = {kw.arg: kw.value for kw in content.keywords if kw.arg}
+            inner = kwargs.get("text") or kwargs.get("data")
+            if inner is not None:
+                return _find_interpolated_params(inner, params)
+        if isinstance(content.func, ast.Attribute) and content.func.attr == "format":
+            return _names_in_subtree(content, params)
+
+    if isinstance(content, ast.JoinedStr):
+        # f-string: scan the FormattedValue children only — string parts
+        # are constants and can't carry param refs.
+        found: list[str] = []
+        for v in content.values:
+            if isinstance(v, ast.FormattedValue):
+                for sub in ast.walk(v.value):
+                    if isinstance(sub, ast.Name) and sub.id in params:
+                        found.append(sub.id)
+        return list(dict.fromkeys(found))
+
+    if isinstance(content, ast.BinOp) and isinstance(content.op, ast.Mod):
+        return _names_in_subtree(content.right, params)
+
+    if isinstance(content, ast.BinOp) and isinstance(content.op, ast.Add):
+        return _names_in_subtree(content, params)
+
+    return []
+
+
+def _names_in_subtree(node: ast.AST, params: list[str]) -> list[str]:
+    found: list[str] = []
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id in params:
+            found.append(sub.id)
+    return list(dict.fromkeys(found))
+
+
+# ---------------------------------------------------------------------------
+# Rule registries — iterated by the analyzer driver in analyze.py.
+# ---------------------------------------------------------------------------
+
+# Per-tool rules.
 RULES: list[Callable[[DiscoveredTool], list[Finding]]] = [
     check_description_injection,
     check_schema_field_injection,
@@ -611,10 +1425,21 @@ RULES: list[Callable[[DiscoveredTool], list[Finding]]] = [
     check_sql_injection_unrestricted,
     check_path_traversal,
     check_command_injection,
+    check_sensitive_logging,
 ]
 
 # Server-level rules — operate on the full tool set, not one tool at a time.
 SERVER_RULES: list[Callable[[list[DiscoveredTool]], list[Finding]]] = [
     check_cross_tool_references,
     check_overbroad_capability_surface,
+]
+
+# Repo-level rules — operate on the scan root path. Used for findings that
+# don't fit per-tool or per-server shapes: committed secrets, transport
+# configuration, server-init code outside tool handlers.
+REPO_RULES: list[Callable[[Path], list[Finding]]] = [
+    check_hardcoded_secrets,
+    check_transport_origin_validation,
+    check_roots_declared_but_unused,
+    check_prompt_injection,
 ]

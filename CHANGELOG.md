@@ -4,8 +4,21 @@ All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https
 
 ## [Unreleased] — main branch
 
+_(empty — next changes go here)_
+
+---
+
+## [0.2.0] — 2026-05-12
+
 ### Added
 
+- **Static-analyzer ruleset complete: 14/14 v0.1 rules implemented.** Five new rules close out the spec:
+  - **MCP-S-010** — committed secrets and `.env` files. Regex scan for named-format keys (AWS, GitHub, OpenAI, Anthropic, Stripe, Slack, Google API, PEM private keys, JWTs); flag presence of `.env*` files in source tree (excluding documented-safe `.example` / `.sample` / `.template` / `.dist` variants). Path-glob allowlist via `.mcp-scan-allowlist` at scan root.
+  - **MCP-S-011** — sensitive data logged to stderr/stdout. AST scan over tool handlers for `print`, `logging.X`, `logger.X`, `sys.stderr.write`, `console.error` calls whose arguments reference a tool parameter, a sensitive-named identifier (`token`, `password`, `header`, etc.), or `os.environ`/`os.getenv`. Calls inside `if debug:` / `if verbose:` blocks suppressed as the documented opt-in shape.
+  - **MCP-S-012** — `RootsCapability` referenced but `list_roots()` never called. Cross-file scan; declares a containment guarantee the server doesn't actually enforce.
+  - **MCP-S-013** — prompt template interpolation without sanitization. Discovers `@<x>.prompt()` handlers, inspects `PromptMessage`/`Message`/role-typed constructors and dict-literal messages, flags parameter interpolation (f-string, `.format`, `%`-format, `+`-concat) into `system` or `assistant` roles. User-role interpolation silenced — too conventional to be useful signal.
+  - **MCP-S-014** — HTTP transport missing Origin/Host validation. AST scan for `uvicorn.run` / similar server binds on `0.0.0.0` / `127.0.0.1` / `localhost`; flags when the source file contains no reference to `Origin` header validation. Also flags the CORS `allow_origins=['*']` + `allow_credentials=True` antipattern.
+- **`REPO_RULES` rule shape** — new third rule registry alongside `RULES` (per-tool) and `SERVER_RULES` (per tool set). Rules in this shape receive the scan-root `Path` and walk the source tree themselves. Used by S-010, S-012, S-013, S-014. Captured-mode scans (`.json`) skip `REPO_RULES` since there's no source tree.
 - `mcp-scan-audit` — one-shot CLI that pip-installs a package, captures its tools/list, runs the analyzer and classifier, and prints a human-readable report. Replaces the previous three-command quickstart in the README.
 - Analyzer rule **MCP-S-004** — flags tools whose `annotations.readOnlyHint: true` or `destructiveHint: false` contradicts write-indicating verbs in the name or description.
 - Analyzer rule **MCP-S-008** — heuristic SQLi detection from captured `tools/list`; flags query-typed parameters without parameterized-query mention.
@@ -18,11 +31,13 @@ All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https
 - `SECURITY.md` and `CONTRIBUTING.md`.
 - Calibration corpus growth: 5 → 10 labeled targets, 33 → 81 tools. Stable per spec.
 - Calibration-driven lexicon improvements (each commit-annotated with the corpus evidence that drove it).
+- Test suite: 76 → **151** tests (45 new across the five new rules).
 
 ### Changed
 
 - README rewritten to feature real findings + one-command quickstart instead of planning-document framing.
 - Scaffolded ground-truth files now include `labeled: false` so the eval skips drafts by default.
+- `_relpath` normalization (in `analyzer/rules.py`) made consistent between directory and single-file scans — REPO_RULES findings now report the same path form as per-tool findings.
 
 ### Fixed
 
