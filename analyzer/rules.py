@@ -373,6 +373,79 @@ def check_url_fetch_unrestricted(tool: DiscoveredTool) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# MCP-S-008 — Database-query tool with no apparent input constraint
+# ---------------------------------------------------------------------------
+
+_QUERY_PARAM_NAMES = {"query", "sql", "filter", "where", "search_query", "stmt", "statement"}
+
+_SQL_VALIDATION_KEYWORDS = (
+    "parameterized", "parameterised", "prepared statement", "prepared-statement",
+    "bind parameters", "bound parameters", "escape", "escaped",
+    "read-only", "select only", "select-only", "no ddl", "no dml",
+    "sanitized", "sanitised", "validated", "allowlist", "sqlite_master",
+)
+
+
+def check_sql_injection_unrestricted(tool: DiscoveredTool) -> list[Finding]:
+    """MCP-S-008 — Heuristic SQLi flag for database-query tools.
+
+    Static counterpart to dynamic SQLi probing (no dynamic scenario exists
+    yet for this — D-008 will pair with it). Fires when:
+    - the tool has a parameter that looks like a SQL/query string (by name
+      or by schema description), AND
+    - there is no schema-level constraint (pattern/enum/const) on that
+      parameter, AND
+    - the description contains none of the SQLi-mitigation keywords that
+      maintainers typically use.
+
+    Necessary-but-not-sufficient — the validation might exist in code
+    (parameterized queries at the cursor level) without being reflected
+    in the tool's MCP surface. Finding is "review this" not
+    "vulnerable for sure."
+    """
+    if not tool.input_schema:
+        return []
+    properties = tool.input_schema.get("properties") or {}
+    query_params: list[str] = []
+    for pname, pdef in properties.items():
+        if pname.lower() in _QUERY_PARAM_NAMES:
+            query_params.append(pname)
+            continue
+        if isinstance(pdef, dict):
+            pdesc = (pdef.get("description") or "").lower()
+            if "sql" in pdesc and ("query" in pdesc or "statement" in pdesc):
+                query_params.append(pname)
+    if not query_params:
+        return []
+
+    for pname in query_params:
+        pdef = properties.get(pname) or {}
+        if pdef.get("pattern") or pdef.get("const") or pdef.get("enum"):
+            return []
+
+    desc_lower = (tool.description or "").lower()
+    if any(kw in desc_lower for kw in _SQL_VALIDATION_KEYWORDS):
+        return []
+
+    return [Finding(
+        rule_id="MCP-S-008",
+        severity="high",
+        category="tool.input.sql_injection",
+        file=tool.source_path,
+        line=tool.line,
+        tool_name=tool.name,
+        message=(
+            f"Tool accepts SQL-shaped input via {query_params!r} with no "
+            f"schema-level constraint and no mention of parameterized "
+            f"queries / sanitization / read-only mode in the description. "
+            f"Verify the implementation uses parameterized queries; if not, "
+            f"vulnerable to SQL injection via prompt-injected tool arguments."
+        ),
+        evidence=f"query_params={query_params}",
+    )]
+
+
+# ---------------------------------------------------------------------------
 # MCP-S-002 — Cross-tool reference in tool description
 # ---------------------------------------------------------------------------
 
@@ -469,6 +542,7 @@ RULES: list[Callable[[DiscoveredTool], list[Finding]]] = [
     check_description_injection,
     check_schema_field_injection,
     check_url_fetch_unrestricted,
+    check_sql_injection_unrestricted,
     check_path_traversal,
     check_command_injection,
 ]

@@ -8,13 +8,14 @@ Static analyzer for MCP servers. Spec: [../docs/static-rules.md](../docs/static-
 
 - Tool discovery via FastMCP-style decorator pattern (`@something.tool` / `@something.tool()`) over `.py` files
 - Tool discovery from captured `tools/list` JSON (`mcp-scan-analyze captured.json`)
-- 7 of 14 v0.1 rules:
+- 8 of 14 v0.1 rules:
   - **MCP-S-001** — Imperative instructions in tool description (heuristic; calibration-tuned against real `mcp-server-fetch`)
   - **MCP-S-002** — Cross-tool reference in tool description (naming-based poisoning; server-level rule)
   - **MCP-S-003** — Hidden instructions in schema sub-fields (parameter descriptions, titles, `$comment`; catches real `mcp-server-time` pattern)
   - **MCP-S-005** — Overbroad capability surface (server-level; wraps classifier's `overbroad_combinations`)
   - **MCP-S-006** — Path traversal in file-handling tool (intra-procedural AST inspection)
   - **MCP-S-007** — Shell command injection in tool handler (subprocess with `shell=True`, `os.system`, `os.popen`)
+  - **MCP-S-008** — Database-query tool with no apparent input constraint (heuristic; flags query/sql params without parameterized-query mention)
   - **MCP-S-009** — URL-fetching tool with no apparent allowlist (heuristic; static counterpart to dynamic D-003 SSRF probe; catches real `mcp-server-fetch` + `mcp-server-http-request` SSRF surface from captured `tools/list` alone)
 - `mcp-scan-analyze <path>` CLI with text and JSON output, severity filtering, and CI-friendly exit codes (`--fail-on`)
 - Scenario YAML linter — `mcp-scan-lint-scenarios scenarios/` — catches the null-byte-smuggling class of bug + parse errors + schema violations

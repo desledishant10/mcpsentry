@@ -399,6 +399,56 @@ def test_s009_catches_real_captured_http_request():
     assert len(s009) == 5, f"expected 5 S-009 findings (one per method); got {len(s009)}"
 
 
+# MCP-S-008 — SQL injection unrestricted -------------------------------------
+
+from analyzer.rules import check_sql_injection_unrestricted
+
+
+def test_s008_flags_query_tool_without_constraint():
+    tool = _captured_tool("execute_sql", "Runs a SQL query against the database.", {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+    })
+    findings = check_sql_injection_unrestricted(tool)
+    assert findings
+    assert findings[0].rule_id == "MCP-S-008"
+
+
+def test_s008_skips_when_parameterized_mentioned():
+    tool = _captured_tool(
+        "execute_sql",
+        "Runs a parameterized SQL query. Bind parameters are escaped.",
+        {"type": "object", "properties": {"query": {"type": "string"}}},
+    )
+    assert check_sql_injection_unrestricted(tool) == []
+
+
+def test_s008_skips_when_read_only_mentioned():
+    tool = _captured_tool(
+        "select_data",
+        "Runs a read-only SELECT against the database. No DDL allowed.",
+        {"type": "object", "properties": {"query": {"type": "string"}}},
+    )
+    assert check_sql_injection_unrestricted(tool) == []
+
+
+def test_s008_skips_tools_without_query_parameter():
+    tool = _captured_tool("read_file", "Reads a file at the path.", {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+    })
+    assert check_sql_injection_unrestricted(tool) == []
+
+
+def test_s008_skips_when_schema_pattern_present():
+    tool = _captured_tool("execute_sql", "Runs a query.", {
+        "type": "object",
+        "properties": {"query": {"type": "string",
+                                  "pattern": "^SELECT [a-z_,\\s]+ FROM users WHERE id = \\d+$"}},
+    })
+    assert check_sql_injection_unrestricted(tool) == []
+
+
 def test_s005_flags_credential_exfil_combination():
     """secret_access + net_egress = credential_exfil rationale."""
     tools = [

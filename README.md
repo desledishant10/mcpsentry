@@ -71,7 +71,7 @@ That's the project's first real-world catch — the shipped tool description of 
 | `mcp-scan-lint-scenarios` | YAML lint for scenario files (catches null-byte smuggling, parse errors, schema violations) |
 | `mcp-scan-test` | Run a dynamic scenario against a real MCP server, optionally with a real LLM agent |
 
-### Static analyzer rules (7 of 14 v0.1 rules implemented)
+### Static analyzer rules (8 of 14 v0.1 rules implemented)
 
 | ID | What it catches | Mode |
 |----|---|---|
@@ -81,6 +81,7 @@ That's the project's first real-world catch — the shipped tool description of 
 | `MCP-S-005` | Overbroad capability surface (e.g. `fs_read` + `net_egress` = exfil pair) | server-level, classifier-driven |
 | `MCP-S-006` | Path traversal in file-handling tool | per-tool, AST + taint |
 | `MCP-S-007` | Shell command injection (`subprocess(shell=True)`, `os.system`, `os.popen`) | per-tool, AST |
+| `MCP-S-008` | Database-query tool with no apparent input constraint (no parameterized-query mention, no schema pattern) | per-tool, heuristic on tools/list |
 | `MCP-S-009` | URL-fetching tool with no scheme/host allowlist (catches the SSRF class flagged dynamically by D-003) | per-tool, heuristic on tools/list |
 
 Every rule's lexicon decisions are commented with the calibration evidence that drove them. Spec for all 14 rules: [docs/static-rules.md](docs/static-rules.md).
@@ -127,7 +128,7 @@ mcp-scan/
 
 | Phase | Planned window | Status |
 |---|---|---|
-| 1 — Static analyzer | weeks 1–6 | 7/14 rules implemented (S-001, S-002, S-003, S-005, S-006, S-007, S-009); Python AST + captured-JSON modes; CLI with severity filtering and CI-friendly exit codes |
+| 1 — Static analyzer | weeks 1–6 | 8/14 rules implemented (S-001, S-002, S-003, S-005, S-006, S-007, S-008, S-009); Python AST + captured-JSON modes; CLI with severity filtering and CI-friendly exit codes |
 | 2 — Dynamic harness | weeks 7–14 | Substantially complete: direct + proxy modes, two agent drivers, 6 scenarios runnable end-to-end against real servers |
 | 3 — Real-world audit | weeks 15–20 | **Started.** 5 documented findings against 3 real Python servers from PyPI. Cloud reproduction of the SSRF finding is the next priority. |
 | 4 — Polish + publish | weeks 21–26 | Not started. README and reference docs complete; blog/whitepaper and conference submission pending audit volume. |
@@ -157,8 +158,8 @@ Out of scope for v1 (intentional — these are good follow-ups, not features):
 
 | | |
 |---|---|
-| Tests passing | **94 / 94** |
-| Analyzer rules | 7 of 14 (S-001, S-002, S-003, S-005, S-006, S-007, S-009) |
+| Tests passing | **99 / 99** |
+| Analyzer rules | 8 of 14 (S-001, S-002, S-003, S-005, S-006, S-007, S-008, S-009) |
 | Dynamic scenarios | 7 (5 from v0.1 seed set + D-006 subtle-injection + D-007 cloud-metadata-exfil) |
 | Calibration corpus | **10 labeled targets, 81 tools, 100/100 precision-recall** (8 verified by direct capture) — hit the spec's "stable" threshold |
 | Real-world finding entries | 5 (1 vulnerability, 3 defense, 1 informational) |
