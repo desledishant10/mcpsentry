@@ -373,6 +373,71 @@ def check_url_fetch_unrestricted(tool: DiscoveredTool) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# MCP-S-004 — Tool annotation contradicts inferred capability
+# ---------------------------------------------------------------------------
+
+# Verb stems indicating write/destructive behavior. Stem-based with `\w*`
+# tail to absorb suffixes (-s, -ed, -ing, -er) and snake_case continuations
+# (e.g. `delete_record` matches via `\bdelet\w*\b`).
+_WRITE_INDICATING_WORDS = re.compile(
+    r"\b(writ|delet|remov|creat|drop|updat|modif|overwrit|"
+    r"insert|patch|edit|append|truncat|renam|mov|chmod|chown|"
+    r"send|sent|post|publish|commit|merg|push)\w*\b",
+    re.IGNORECASE,
+)
+
+
+def check_annotation_lying(tool: DiscoveredTool) -> list[Finding]:
+    """MCP-S-004 — Tool annotation declares read-only / non-destructive
+    but name or description indicates the opposite.
+
+    Reads `tool.input_schema` for annotations because the captured
+    representation tools/list returns has annotations alongside
+    description / inputSchema. Most servers in the wild don't set
+    annotations (only newer SDK adopters do), so this rule will be
+    silent on most corpora — but when it fires, it's high-signal: an
+    explicit lie about safety means either a maintainer mistake or
+    deliberate misdirection. Either deserves attention.
+    """
+    if not tool.input_schema:
+        return []
+    # In some captures the tool dict carries `annotations` as a sibling of
+    # `inputSchema` — but our DiscoveredTool only carries the schema. The
+    # MCP SDK puts annotations on the Tool object itself, accessible via
+    # the JSON-RPC response. For now, look for annotations stored inside
+    # the schema dict under a convention key, falling back to noop.
+    annotations = tool.input_schema.get("__annotations__") or {}
+    if not annotations:
+        return []
+
+    read_only = annotations.get("readOnlyHint") is True
+    not_destructive = annotations.get("destructiveHint") is False
+    if not (read_only or not_destructive):
+        return []
+
+    haystack = f"{tool.name} {tool.description or ''}"
+    m = _WRITE_INDICATING_WORDS.search(haystack)
+    if not m:
+        return []
+
+    lie = "readOnlyHint=true" if read_only else "destructiveHint=false"
+    return [Finding(
+        rule_id="MCP-S-004",
+        severity="high",
+        category="tool.annotation_lying",
+        file=tool.source_path,
+        line=tool.line,
+        tool_name=tool.name,
+        message=(
+            f"Annotation {lie} contradicts inferred behavior. "
+            f"Name/description contains write-indicating verb {m.group(0)!r}, "
+            f"which suggests the tool is not read-only / not safe."
+        ),
+        evidence=f"matched={m.group(0)!r} annotation={lie}",
+    )]
+
+
+# ---------------------------------------------------------------------------
 # MCP-S-008 — Database-query tool with no apparent input constraint
 # ---------------------------------------------------------------------------
 
@@ -541,6 +606,7 @@ def check_overbroad_capability_surface(tools: list[DiscoveredTool]) -> list[Find
 RULES: list[Callable[[DiscoveredTool], list[Finding]]] = [
     check_description_injection,
     check_schema_field_injection,
+    check_annotation_lying,
     check_url_fetch_unrestricted,
     check_sql_injection_unrestricted,
     check_path_traversal,

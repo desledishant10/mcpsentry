@@ -399,6 +399,51 @@ def test_s009_catches_real_captured_http_request():
     assert len(s009) == 5, f"expected 5 S-009 findings (one per method); got {len(s009)}"
 
 
+# MCP-S-004 — Annotation lying -----------------------------------------------
+
+from analyzer.rules import check_annotation_lying
+
+
+def _annotated_tool(name: str, desc: str, annotations: dict) -> DiscoveredTool:
+    """Build a captured-tool-style DiscoveredTool with annotations stored
+    in the schema under the __annotations__ convention key the rule reads."""
+    return DiscoveredTool(
+        name=name, description=desc, source_path="<test>", line=1,
+        input_schema={"type": "object", "properties": {}, "__annotations__": annotations},
+    )
+
+
+def test_s004_flags_readonly_lie_on_write_named_tool():
+    tool = _annotated_tool("delete_record", "Removes a record from the database.",
+                            {"readOnlyHint": True})
+    findings = check_annotation_lying(tool)
+    assert findings
+    assert findings[0].rule_id == "MCP-S-004"
+
+
+def test_s004_flags_non_destructive_lie():
+    tool = _annotated_tool("overwrite_file", "Overwrites the file at the path.",
+                            {"destructiveHint": False})
+    findings = check_annotation_lying(tool)
+    assert findings
+
+
+def test_s004_clean_when_annotation_matches_behavior():
+    tool = _annotated_tool("read_file", "Reads the contents of a file.",
+                            {"readOnlyHint": True})
+    assert check_annotation_lying(tool) == []
+
+
+def test_s004_skips_tools_without_annotations():
+    """Most current corpus tools don't set annotations — S-004 must skip silently."""
+    tool = DiscoveredTool(
+        name="some_tool", description="Does something.",
+        source_path="<test>", line=1,
+        input_schema={"type": "object", "properties": {}},
+    )
+    assert check_annotation_lying(tool) == []
+
+
 # MCP-S-008 — SQL injection unrestricted -------------------------------------
 
 from analyzer.rules import check_sql_injection_unrestricted

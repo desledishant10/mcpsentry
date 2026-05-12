@@ -8,10 +8,11 @@ Static analyzer for MCP servers. Spec: [../docs/static-rules.md](../docs/static-
 
 - Tool discovery via FastMCP-style decorator pattern (`@something.tool` / `@something.tool()`) over `.py` files
 - Tool discovery from captured `tools/list` JSON (`mcp-scan-analyze captured.json`)
-- 8 of 14 v0.1 rules:
+- 9 of 14 v0.1 rules:
   - **MCP-S-001** — Imperative instructions in tool description (heuristic; calibration-tuned against real `mcp-server-fetch`)
   - **MCP-S-002** — Cross-tool reference in tool description (naming-based poisoning; server-level rule)
   - **MCP-S-003** — Hidden instructions in schema sub-fields (parameter descriptions, titles, `$comment`; catches real `mcp-server-time` pattern)
+  - **MCP-S-004** — Tool annotation contradicts inferred capability (`readOnlyHint: true` on a tool named `delete_record`, etc.)
   - **MCP-S-005** — Overbroad capability surface (server-level; wraps classifier's `overbroad_combinations`)
   - **MCP-S-006** — Path traversal in file-handling tool (intra-procedural AST inspection)
   - **MCP-S-007** — Shell command injection in tool handler (subprocess with `shell=True`, `os.system`, `os.popen`)
