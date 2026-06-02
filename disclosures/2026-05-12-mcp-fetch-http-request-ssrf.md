@@ -3,13 +3,13 @@
 **Filed:** 2026-05-12
 **Filed by:** Dishant Desle — didesle7@gmail.com
 **Filed to:**
-- `mcp-server-fetch`: **filed** — https://github.com/modelcontextprotocol/servers/issues/4143
-- `mcp-server-http-request`: **filed** — email to esteban@statespace.com, gavin@statespace.com (no public issue tracker)
+- `mcp-server-fetch`: **filed + fix PR in review** — issue [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143), fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by @kgarg2468 (opened 2026-05-22, all 16 CI checks passing, awaiting maintainer review)
+- `mcp-server-http-request`: **filed, no response yet** — email to esteban@statespace.com, gavin@statespace.com (no public issue tracker)
 **Affected:**
 - `mcp-server-fetch` v2025.4.7 (PyPI; Anthropic reference)
 - `mcp-server-http-request` v0.1.0 (PyPI; community)
 **Embargo:** 2026-08-10 (90 days from filing — both packages)
-**Status:** **filed (both)**
+**Status:** **fix PR in review (mcp-server-fetch); no response yet (mcp-server-http-request)**
 
 ---
 
@@ -114,6 +114,21 @@ Updates to this file should reflect each of those touchpoints.
 ---
 
 ## Updates
+
+### 2026-05-22 — fix PR opened against `mcp-server-fetch`
+
+PR [modelcontextprotocol/servers#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` opened with title *"fix(fetch): block private network URL fetches"* and the body explicitly listing `Fixes #4143`. The PR's commit summary describes the fix as:
+
+- Validate fetch URLs use `http` / `https` scheme
+- Resolve hostnames and reject targets that aren't public IP addresses
+- Block `localhost`, private, loopback, link-local, and metadata-service targets
+- Follow redirects manually so redirected targets are validated before each request
+
+The redirect-validation step is a *more rigorous* defense than the original disclosure asked for. Without it, an attacker could host a public URL that 302-redirects to `http://169.254.169.254/...` — the in-package scheme/host check would have passed on the initial request and the metadata leak would still occur. Per-redirect validation closes that bypass.
+
+All 16 CI checks pass on the PR. It's awaiting at least one approving review from a maintainer with write access. The fix is on branch `kgarg/harden-fetch-ssrf` if anyone wants to install from the branch and verify.
+
+Half of the class-wide finding is now resolved on the technical side, pending merge. The community half (`mcp-server-http-request`) still has no maintainer response.
 
 ### 2026-05-12 — `mcp-server-fetch` issue filed
 

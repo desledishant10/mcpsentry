@@ -4,7 +4,9 @@ All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https
 
 ## [Unreleased] — main branch
 
-_(empty — next changes go here)_
+### Disclosure status
+
+- **2026-05-22 — mcp-server-fetch fix PR opened.** PR [modelcontextprotocol/servers#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` explicitly fixes [#4143](https://github.com/modelcontextprotocol/servers/issues/4143) with scheme allowlist + reserved-range denylist + **per-redirect validation** (a defense beyond the original disclosure ask). All 16 CI checks pass; awaiting maintainer approval. Finding entry and disclosure record updated.
 
 ---
 
