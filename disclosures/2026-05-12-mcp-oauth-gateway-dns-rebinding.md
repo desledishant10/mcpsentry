@@ -203,6 +203,17 @@ The earlier SSRF disclosures used public issues + emails because (a) `modelconte
 
 ## Updates
 
+### 2026-06-02 — day +21 follow-up ping sent to atrawog
+
+No response from `atrawog@gmail.com` since the 2026-05-12 filing. Day +14 (2026-05-26) ping was missed in the schedule; sent the follow-up today at day +21 instead. Reply attached to the original thread so it bumps in their inbox. References the parallel SSRF disclosure timeline as concrete evidence of how an engaged maintainer response shape looks (PR within 10 days, fix verified) — frames as informational rather than pressuring. Restates suggested fix (TrustedHostMiddleware + Origin allowlist + change `mcp-fetch-streamablehttp-server` default bind to 127.0.0.1), restates 2026-08-10 embargo.
+
+If still silent at day +30 (2026-06-11), escalate via:
+- GitHub user profile `@atrawog` if reachable (DMs, issues on personal repos)
+- Direct issue on `atrawog/mcp-oauth-gateway` with non-exploitative summary (cross-link this disclosure record, no PoC, mention 90-day embargo)
+- MCP Discord / community channels for a soft heads-up
+
+If silent through 2026-08-10: publish per embargo, public writeup notes maintainer was notified 2026-05-12 + followed up 2026-06-02 with no response.
+
 ### 2026-05-12 — Email sent to maintainer
 
 Sent direct to `atrawog@gmail.com` (the Author-email from the `mcp-fetch-streamablehttp-server` PyPI metadata). The GitHub Security Advisory form was unavailable — `/security/advisories/new` returned 404, indicating the repo has not enabled private vulnerability reporting for outside reporters even though the Security tab is present in the nav. Email is the published-on-PyPI maintainer contact channel, and matches the precedent set by the `mcp-server-http-request` SSRF disclosure earlier the same day (also email-only).

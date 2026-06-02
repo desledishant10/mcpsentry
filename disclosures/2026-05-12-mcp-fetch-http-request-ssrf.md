@@ -115,6 +115,17 @@ Updates to this file should reflect each of those touchpoints.
 
 ## Updates
 
+### 2026-06-02 — day +21 follow-up ping sent to `mcp-server-http-request` maintainers
+
+No response from `esteban@statespace.com` or `gavin@statespace.com` since the 2026-05-12 filing. Day +14 (2026-05-26) ping was missed in the schedule; sent the follow-up today at day +21 instead. Reply attached to the original thread (not a new thread) so it bumps in their inbox. Brief, non-pushy: references the parallel `mcp-server-fetch` fix shipping + verification as substantive new information that justifies the follow-up, restates suggested fix shape, restates 2026-08-10 embargo. No new ask.
+
+If still silent at day +30 (2026-06-11), escalate via:
+- LinkedIn DM to Esteban Safranchik and/or Gavin Chan (statespace.com employees, public)
+- `statespace.com` contact form
+- GitHub user-profile lookup for either maintainer
+
+If silent through 2026-08-10: publish per embargo, public writeup notes maintainer was notified 2026-05-12 + followed up 2026-06-02 with no response.
+
 ### 2026-05-22 — fix PR independently verified
 
 Same demo script that produced the IAM credential exfil on EC2 was re-run against the fix branch (`kgarg/harden-fetch-ssrf`), this time installed locally — sufficient because the new validation logic checks IP class *before* attempting the network request, so the refusal is observable without metadata reachability.
