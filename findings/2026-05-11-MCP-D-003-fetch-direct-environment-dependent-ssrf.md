@@ -4,7 +4,7 @@
 **Target:** `mcp-server-fetch` v2025.4.7 (PyPI)
 **Tested by:** [scenarios/MCP-D-003-ssrf-url-fetcher.yaml](../scenarios/MCP-D-003-ssrf-url-fetcher.yaml)
 **Agent driver:** n/a (direct mode — harness as MCP client)
-**Outcome:** **VULNERABILITY (demonstrated on EC2 2026-05-12; fix PR in review 2026-05-22)** — high on cloud-hosted agent hosts running IMDSv1 or IMDSv2-Optional; mitigated by IMDSv2-Required (Amazon Linux 2023 default since 2024). Coordinated disclosure filed as [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143); fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by @kgarg2468 (scheme allowlist + reserved-range denylist + per-redirect validation; 16/16 CI checks passing, awaiting maintainer approval). Embargo: 2026-08-10.
+**Outcome:** **VULNERABILITY (demonstrated on EC2 2026-05-12; fix PR verified 2026-05-22)** — high on cloud-hosted agent hosts running IMDSv1 or IMDSv2-Optional; mitigated by IMDSv2-Required (Amazon Linux 2023 default since 2024). Coordinated disclosure filed as [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143); fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by @kgarg2468 (scheme allowlist + reserved-range denylist + per-redirect validation). Independent verification 2026-05-22: same demo that previously exfiltrated IAM credentials now returns `"Fetching private or non-public IP addresses is not allowed"`. Awaiting maintainer approval. Embargo: 2026-08-10.
 
 ## Result
 

@@ -3,13 +3,13 @@
 **Filed:** 2026-05-12
 **Filed by:** Dishant Desle — didesle7@gmail.com
 **Filed to:**
-- `mcp-server-fetch`: **filed + fix PR in review** — issue [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143), fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by @kgarg2468 (opened 2026-05-22, all 16 CI checks passing, awaiting maintainer review)
+- `mcp-server-fetch`: **filed + fix PR independently verified** — issue [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143), fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by @kgarg2468 (opened 2026-05-22; verified 2026-05-22 that the fix closes the gap; awaiting maintainer review)
 - `mcp-server-http-request`: **filed, no response yet** — email to esteban@statespace.com, gavin@statespace.com (no public issue tracker)
 **Affected:**
 - `mcp-server-fetch` v2025.4.7 (PyPI; Anthropic reference)
 - `mcp-server-http-request` v0.1.0 (PyPI; community)
 **Embargo:** 2026-08-10 (90 days from filing — both packages)
-**Status:** **fix PR in review (mcp-server-fetch); no response yet (mcp-server-http-request)**
+**Status:** **fix PR verified to close the gap (mcp-server-fetch); no response yet (mcp-server-http-request)**
 
 ---
 
@@ -114,6 +114,27 @@ Updates to this file should reflect each of those touchpoints.
 ---
 
 ## Updates
+
+### 2026-05-22 — fix PR independently verified
+
+Same demo script that produced the IAM credential exfil on EC2 was re-run against the fix branch (`kgarg/harden-fetch-ssrf`), this time installed locally — sufficient because the new validation logic checks IP class *before* attempting the network request, so the refusal is observable without metadata reachability.
+
+Before the fix (EC2 verification 2026-05-12, `mcp-server-fetch` v2025.4.7):
+
+```
+{"Code":"Success", "AccessKeyId":"ASIA****", "SecretAccessKey":"wJal****",
+ "Token":"AQoD****", "Expiration":"2026-05-12T..."}
+```
+
+After the fix (local verification 2026-05-22, `mcp-server-fetch` v0.6.3 from the PR branch):
+
+```
+Fetching private or non-public IP addresses is not allowed
+```
+
+Refusal happens at the validation layer with a clean error message — no network attempt. The per-redirect validation in the PR also closes the 302-bypass path (a public URL redirecting to `169.254.169.254` would otherwise have escaped a first-request-only check; the PR validates after each redirect).
+
+Second comment posted on the PR confirming the verification.
 
 ### 2026-05-22 — fix PR opened against `mcp-server-fetch`
 
