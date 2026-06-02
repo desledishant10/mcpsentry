@@ -750,13 +750,154 @@ def test_s014_does_not_flag_public_ip(tmp_path):
     assert not [f for f in findings if f.category == "transport.origin_unchecked"]
 
 
-def test_s014_suppresses_when_file_mentions_origin(tmp_path):
-    """Mention of 'origin' (case-insensitive) anywhere in the file means
-    the maintainer has thought about it — suppress the unchecked finding.
-    Real audits still confirm by reading code, but for the static heuristic
-    this is the documented opt-out shape."""
+def test_s014_does_NOT_suppress_when_origin_only_in_comment(tmp_path):
+    """v0.3 (W2): a comment mentioning 'origin' is no longer sufficient to
+    silence the rule. The detector now requires actual Origin-reading code
+    in the AST. This was the previous false-negative shape — comments
+    promising external middleware (`# CORS is handled by Traefik`) used to
+    silence the rule despite no in-process validation."""
     (tmp_path / "server.py").write_text(
         _server_py("0.0.0.0", mentions_origin=True)
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_suppressed_by_real_origin_header_get(tmp_path):
+    """v0.3 (W2): actual `.headers.get('Origin', ...)` code in the AST
+    DOES silence the rule — the maintainer has wired in real validation."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "from fastapi import FastAPI, Request\n"
+        "app = FastAPI()\n"
+        "ALLOWED = ['https://app.example.com']\n"
+        "@app.middleware('http')\n"
+        "async def check_origin(request: Request, call_next):\n"
+        "    origin = request.headers.get('Origin', '')\n"
+        "    if origin and origin not in ALLOWED:\n"
+        "        return JSONResponse({'detail': 'forbidden'}, status_code=403)\n"
+        "    return await call_next(request)\n"
+        "uvicorn.run(app, host='0.0.0.0', port=3000)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert not [f for f in findings if f.category == "transport.origin_unchecked"]
+
+
+def test_s014_suppressed_by_origin_header_subscript(tmp_path):
+    """v0.3 (W2): subscript form `request.headers['Origin']` also silences."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "async def check(req):\n"
+        "    if req.headers['Origin'] not in ALLOWED:\n"
+        "        return 403\n"
+        "uvicorn.run(app, host='0.0.0.0', port=3000)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert not [f for f in findings if f.category == "transport.origin_unchecked"]
+
+
+def test_s014_NOT_suppressed_by_response_header_string(tmp_path):
+    """v0.3 (W2): a response-header VALUE containing 'Origin' (in a string
+    literal, not an AST attribute access) does not count as validation."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "HEADERS = {'Access-Control-Allow-Origin': '*'}\n"
+        "uvicorn.run(app, host='0.0.0.0', port=3000)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+# v0.3 (W1) — resolve host=variable from assignments and function defaults
+
+def test_s014_resolves_host_from_module_assignment(tmp_path):
+    """v0.3 (W1): `host = "0.0.0.0"; uvicorn.run(app, host=host)` should fire."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "host = '0.0.0.0'\n"
+        "port = 8080\n"
+        "uvicorn.run(app, host=host, port=port)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_resolves_host_from_function_default(tmp_path):
+    """v0.3 (W1): `def main(host='0.0.0.0'): uvicorn.run(app, host=host)`
+    should fire — this is the shape mcp-streamablehttp-proxy uses."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "def main(host='0.0.0.0', port=8080):\n"
+        "    uvicorn.run(app, host=host, port=port)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_resolves_host_from_kwonly_default(tmp_path):
+    """v0.3 (W1): keyword-only defaults are also resolved."""
+    (tmp_path / "server.py").write_text(
+        "import uvicorn\n"
+        "def main(*, host='127.0.0.1', port=8080):\n"
+        "    uvicorn.run(app, host=host, port=port)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_does_NOT_resolve_unbound_variable(tmp_path):
+    """v0.3 (W1) negative case: if the variable isn't bound to a literal
+    anywhere in the file, we can't resolve it — the rule stays silent
+    rather than guessing."""
+    (tmp_path / "server.py").write_text(
+        "import os\n"
+        "import uvicorn\n"
+        "uvicorn.run(app, host=os.environ['HOST'], port=8080)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    # Not flagged because we can't determine the host from a literal — the
+    # env-var pattern is itself often a "deploy chooses host" indicator.
+    assert not [f for f in findings if f.category == "transport.origin_unchecked"]
+
+
+# v0.3 (W3) — aiohttp.web bind shapes
+
+def test_s014_flags_aiohttp_run_app(tmp_path):
+    """v0.3 (W3): `web.run_app(app, host='0.0.0.0')` should fire — same
+    pattern as uvicorn but uses a different SDK method."""
+    (tmp_path / "server.py").write_text(
+        "from aiohttp import web\n"
+        "app = web.Application()\n"
+        "web.run_app(app, host='0.0.0.0', port=8080)\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_flags_aiohttp_tcpsite(tmp_path):
+    """v0.3 (W3): `web.TCPSite(runner, '127.0.0.1', 8080)` — positional host.
+    This is the shape `mcp-server-fetch-sse` uses."""
+    (tmp_path / "server.py").write_text(
+        "from aiohttp import web\n"
+        "async def start(runner):\n"
+        "    site = web.TCPSite(runner, '127.0.0.1', 8080)\n"
+        "    await site.start()\n"
+    )
+    findings = check_transport_origin_validation(tmp_path)
+    assert any(f.category == "transport.origin_unchecked" for f in findings)
+
+
+def test_s014_aiohttp_run_app_silenced_by_real_origin_check(tmp_path):
+    """v0.3 (W2 + W3): aiohttp.web combined with actual Origin validation
+    in the AST should not fire."""
+    (tmp_path / "server.py").write_text(
+        "from aiohttp import web\n"
+        "@web.middleware\n"
+        "async def origin_check(request, handler):\n"
+        "    if request.headers.get('Origin') not in ALLOWED:\n"
+        "        return web.Response(status=403)\n"
+        "    return await handler(request)\n"
+        "web.run_app(app, host='0.0.0.0', port=8080)\n"
     )
     findings = check_transport_origin_validation(tmp_path)
     assert not [f for f in findings if f.category == "transport.origin_unchecked"]

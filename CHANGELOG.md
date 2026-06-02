@@ -4,6 +4,14 @@ All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https
 
 ## [Unreleased] — main branch
 
+### Changed
+
+- **MCP-S-014 detector v0.3 patches.** The DNS-rebinding survey surfaced three false-negative classes in the v0.2 detector; all three are now fixed:
+  - **W1 — host=variable resolution.** The detector previously only resolved string-literal host arguments. `uvicorn.run(app, host=host, port=port)` patterns where `host` is bound to `"0.0.0.0"` earlier (via module-level assignment or function parameter default) now resolve correctly. Pre-pass `_collect_string_bindings(tree)` walks the file for `ast.Assign` and `FunctionDef.args.defaults` / `kwonlyargs` bindings; `_extract_host_value` threads the binding map through and resolves `ast.Name` arguments. File-wide flat scope (no lexical-scope precision) is a deliberate heuristic for a "review this" static rule.
+  - **W2 — origin-suppression tightened.** Previously a case-insensitive `\borigin\b` substring match anywhere in the file silenced the rule. Comments like `# CORS handled by Traefik` and wildcard CORS response headers (`Access-Control-Allow-Origin: *`) both qualified. New `_file_validates_origin(tree)` walks the AST for actual request-header reads: `.headers["Origin"]` (subscript) or `.headers.get("Origin", …)` (method call), case-insensitive on the key. Comments, docstrings, and response-header string literals no longer suppress.
+  - **W3 — aiohttp.web bind shapes.** `_SERVER_BIND_METHODS` extended with `run_app` (keyword-host pattern: `web.run_app(app, host="…")`) and `TCPSite` (positional-host pattern: `web.TCPSite(runner, "…", port)`). `mcp-server-fetch-sse` and similar aiohttp-based packages no longer slip through the detector.
+- Test suite: **151 → 161** tests (10 new across W1/W2/W3 positive + negative cases).
+
 ### Disclosure status
 
 - **2026-05-22 — mcp-server-fetch fix PR opened AND independently verified.** PR [modelcontextprotocol/servers#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` explicitly fixes [#4143](https://github.com/modelcontextprotocol/servers/issues/4143) with scheme allowlist + reserved-range denylist + **per-redirect validation** (a defense beyond the original disclosure ask). Same demo script that retrieved IAM credentials on EC2 was re-run against the fix branch: now returns `"Fetching private or non-public IP addresses is not allowed"`. Verification comment posted on the PR. Awaiting maintainer approval.

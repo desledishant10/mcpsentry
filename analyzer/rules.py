@@ -966,7 +966,10 @@ _HOST_KW_NAMES = ("host", "bind", "address", "hostname")
 
 # Bare `run` / `serve` without a module prefix is too ambiguous to act on
 # (could be any user-defined function), so we require an attribute call.
-_SERVER_BIND_METHODS = {"run", "serve", "run_sync"}
+# v0.3 (W3): added `run_app` and `TCPSite` so aiohttp.web bind shapes are
+# recognized — previously `web.run_app(app, host=...)` and
+# `web.TCPSite(runner, host, port)` slipped through the detector.
+_SERVER_BIND_METHODS = {"run", "serve", "run_sync", "run_app", "TCPSite"}
 
 # Owners we *do not* want to confuse with HTTP server binds. `asyncio.run`
 # wraps a coroutine, not a server start.
@@ -1003,9 +1006,13 @@ def check_transport_origin_validation(root: Path) -> list[Finding]:
 
         rel = _relpath(f, root)
         binds = _find_rebindable_binds(tree)
-        mentions_origin = _file_mentions_origin(text)
+        # v0.3 (W2): require actual Origin-reading code in the AST rather
+        # than any case-insensitive "origin" substring. Comments like
+        # `# CORS is handled by Traefik` and response-header strings like
+        # `"Access-Control-Allow-Origin": "*"` no longer suppress the rule.
+        validates_origin = _file_validates_origin(tree)
 
-        if binds and not mentions_origin:
+        if binds and not validates_origin:
             for bind_node, host_value in binds:
                 findings.append(Finding(
                     rule_id="MCP-S-014", severity="high",
@@ -1040,18 +1047,57 @@ def check_transport_origin_validation(root: Path) -> list[Finding]:
 
 
 def _find_rebindable_binds(tree: ast.AST) -> list[tuple[ast.Call, str]]:
+    # v0.3 (W1): pre-collect file-wide string bindings (assignments + function
+    # param defaults) so `uvicorn.run(app, host=host)` where `host` is bound
+    # earlier to "0.0.0.0" gets resolved. File-wide flat scope is a
+    # deliberate heuristic — the rule is "review this" not "definitely vuln".
+    bindings = _collect_string_bindings(tree)
     out: list[tuple[ast.Call, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         if not _is_server_bind_call(node):
             continue
-        host = _extract_host_value(node)
+        host = _extract_host_value(node, bindings)
         if host is None:
             continue
         if host.lower() in _REBINDABLE_HOSTS:
             out.append((node, host))
     return out
+
+
+def _collect_string_bindings(tree: ast.AST) -> dict[str, str]:
+    """Map name → string-literal value for module/function-local assignments
+    and function parameter defaults. Used by `_extract_host_value` to
+    resolve `host=host_var` patterns where `host_var` was bound to a
+    literal somewhere in the same file.
+
+    Heuristic — file-wide flat scope, no lexical-scope precision. The risk
+    is FPs when the same name binds differently in different scopes; for
+    a "review this" static rule this is acceptable.
+    """
+    bindings: dict[str, str] = {}
+    for node in ast.walk(tree):
+        # `foo = "value"` (assume single-target literal-string assignment)
+        if isinstance(node, ast.Assign):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                val = node.value
+                if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                    bindings[node.targets[0].id] = val.value
+        # `def f(host="0.0.0.0", ...)` — positional defaults + kw-only defaults.
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            args = node.args
+            n_def = len(args.defaults)
+            if n_def > 0:
+                for arg, dflt in zip(args.args[-n_def:], args.defaults):
+                    if isinstance(dflt, ast.Constant) and isinstance(dflt.value, str):
+                        bindings[arg.arg] = dflt.value
+            for arg, dflt in zip(args.kwonlyargs, args.kw_defaults):
+                if dflt is None:
+                    continue
+                if isinstance(dflt, ast.Constant) and isinstance(dflt.value, str):
+                    bindings[arg.arg] = dflt.value
+    return bindings
 
 
 def _is_server_bind_call(call: ast.Call) -> bool:
@@ -1065,22 +1111,67 @@ def _is_server_bind_call(call: ast.Call) -> bool:
     return True
 
 
-def _extract_host_value(call: ast.Call) -> str | None:
-    for kw in call.keywords:
-        if kw.arg in _HOST_KW_NAMES:
-            v = kw.value
-            if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                return v.value
-    # Common positional form: uvicorn.run(app, "0.0.0.0", 3000)
-    if len(call.args) >= 2:
-        v = call.args[1]
+def _extract_host_value(call: ast.Call, bindings: dict[str, str] | None = None) -> str | None:
+    """Extract the host string from a server-bind call.
+
+    Handles literal strings directly, and resolves `ast.Name` arguments via
+    the `bindings` map (collected by `_collect_string_bindings`). v0.3 (W1).
+    """
+    bindings = bindings or {}
+
+    def _resolve(v: ast.expr) -> str | None:
         if isinstance(v, ast.Constant) and isinstance(v.value, str):
             return v.value
+        if isinstance(v, ast.Name) and v.id in bindings:
+            return bindings[v.id]
+        return None
+
+    for kw in call.keywords:
+        if kw.arg in _HOST_KW_NAMES:
+            r = _resolve(kw.value)
+            if r is not None:
+                return r
+    # Common positional form: uvicorn.run(app, "0.0.0.0", 3000) / web.TCPSite(runner, host, port)
+    if len(call.args) >= 2:
+        r = _resolve(call.args[1])
+        if r is not None:
+            return r
     return None
 
 
-def _file_mentions_origin(text: str) -> bool:
-    return bool(re.search(r"\borigin\b", text, re.IGNORECASE))
+def _file_validates_origin(tree: ast.AST) -> bool:
+    """True if the file's AST contains code that actually reads the Origin
+    request header — `.headers["Origin"]` / `.headers["origin"]` or
+    `.headers.get("Origin", ...)` style. v0.3 (W2).
+
+    Designed to NOT match:
+    - Comments mentioning Origin (e.g. `# CORS handled by Traefik`)
+    - Response-header strings (e.g. `"Access-Control-Allow-Origin": "*"`)
+    - Docstrings or module-level descriptions
+
+    Those would all previously have silenced the rule under the old
+    case-insensitive substring check.
+    """
+    for node in ast.walk(tree):
+        # `something.headers["Origin"]` — subscript access
+        if isinstance(node, ast.Subscript):
+            v = node.value
+            if isinstance(v, ast.Attribute) and v.attr == "headers":
+                slc = node.slice
+                if isinstance(slc, ast.Constant) and isinstance(slc.value, str):
+                    if slc.value.lower() == "origin":
+                        return True
+        # `something.headers.get("Origin", ...)` — method call
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Attribute) and f.attr == "get":
+                v = f.value
+                if isinstance(v, ast.Attribute) and v.attr == "headers":
+                    if node.args and isinstance(node.args[0], ast.Constant):
+                        first = node.args[0].value
+                        if isinstance(first, str) and first.lower() == "origin":
+                            return True
+    return False
 
 
 def _find_cors_wildcard_with_credentials(tree: ast.AST) -> list[ast.Call]:
