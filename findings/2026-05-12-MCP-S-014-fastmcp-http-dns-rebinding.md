@@ -4,7 +4,7 @@
 **Target:** `fastmcp-http` v0.1.4 (PyPI; [ARadRareness/mcp-registry](https://github.com/ARadRareness/mcp-registry))
 **Tested by:** MCP-S-014 (static; W2 keyword-suppression — file contains no "origin" reference, but the detector missed it because the bind shape uses `self.flask_app.run(host=host)` with `host` as a function parameter, not `ast.Constant`; pure W1 false-negative) + manual source review
 **Agent driver:** n/a (transport-layer finding)
-**Outcome:** **VULNERABILITY (source-confirmed)** — Flask dev server bound to `0.0.0.0` with no middleware, no auth, and zero Origin/Host validation anywhere in the package. Disclosure pending (GitHub-only contact). Embargo target: 2026-08-10.
+**Outcome:** **VULNERABILITY (source-confirmed; disclosure drafted 2026-06-02 — public-issue channel of last resort since maintainer publishes no private channel)** — Flask dev server bound to `0.0.0.0` with no middleware, no auth, and zero Origin/Host validation anywhere in the package. Coordinated disclosure drafted at [disclosures/2026-06-02-fastmcp-http-dns-rebinding.md](../disclosures/2026-06-02-fastmcp-http-dns-rebinding.md). Public-issue body kept intentionally light on PoC details — full source-level evidence stays in this file, gated by the 2026-08-10 embargo. Channel decision verified by `gh api`: GHSA disabled, maintainer profile has no email/blog/twitter, PyPI lists only the GitHub-noreply address. Embargo target: 2026-08-10.
 
 ## Result
 
