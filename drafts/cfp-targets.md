@@ -1,4 +1,8 @@
-# CFP targets — Summer/Fall 2026
+# CFP targets — Summer/Fall 2026 (RESEARCHED BUT NOT PURSUING)
+
+**Decision (2026-06-09): not submitting to conferences this cycle.** This file is preserved as a decision record + a starting point if I change my mind. Deadlines and abstracts below are valid; just unfilled.
+
+If I do reconsider later, the OWASP AppSec deadline (June 29) is the more recoverable one — poster track for AI Village (June 14) is shorter notice and may require near-term decision. BSides Atlanta CFP opens July 6 and is the lowest-friction first-talk option if I ever decide to start speaking.
 
 Research date: 2026-06-09. Two CFPs are open right now with deadlines in the next 3 weeks; one more opens July 6.
 
