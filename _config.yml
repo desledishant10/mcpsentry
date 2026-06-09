@@ -1,0 +1,16 @@
+exclude:
+  - drafts/
+  - poc/
+  - findings/
+  - disclosures/
+  - calibration/
+  - harness/
+  - analyzer/
+  - classifier/
+  - scenarios/
+  - CHANGELOG.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+include:
+  - README.md
+  - docs/
