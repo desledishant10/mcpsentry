@@ -34,7 +34,7 @@ def mock_target(tmp_path: Path):
         env = {
             **os.environ,
             "PYTHONPATH": f"{PROJECT_ROOT}{os.pathsep}{os.environ.get('PYTHONPATH', '')}",
-            "MCPSCAN_MOCK_CONFIG": str(config_path),
+            "MCPSENTRY_MOCK_CONFIG": str(config_path),
             "PYTHONUNBUFFERED": "1",
         }
         return Target(

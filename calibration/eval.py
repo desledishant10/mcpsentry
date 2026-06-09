@@ -2,8 +2,8 @@
 ground truth, report per-tag precision/recall plus per-tool diffs.
 
 Run via:
-    mcp-scan-eval-calibration example_server
-    mcp-scan-eval-calibration --format json example_server
+    mcpsentry-eval-calibration example_server
+    mcpsentry-eval-calibration --format json example_server
 
 Ground-truth files live in `calibration/ground_truth/<target>.yaml`.
 The schema is documented in `calibration/README.md`.
@@ -230,7 +230,7 @@ def format_report_text(r: EvalReport) -> str:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcp-scan-eval-calibration")
+    p = argparse.ArgumentParser(prog="mcpsentry-eval-calibration")
     p.add_argument(
         "target",
         nargs="?",

@@ -1,8 +1,16 @@
 # Changelog
 
-All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https://keepachangelog.com/); the project is alpha so changes are not yet versioned with semver discipline.
+All notable changes to mcpsentry (formerly MCP-Scan; renamed 2026-06-08 to avoid namespace collision with Snyk-Invariant's `mcp-scan` / `agent-scan`). Format roughly follows [Keep a Changelog](https://keepachangelog.com/); the project is alpha so changes are not yet versioned with semver discipline. Historical version sections below preserve the project's original name as written at release time.
 
 ## [Unreleased] — main branch
+
+### Changed
+
+- **Project renamed: MCP-Scan → mcpsentry.** Avoids collision with Snyk-Invariant's well-established `mcp-scan` (now `agent-scan`, 2.5k stars). PyPI namespace, GitHub repo URL, console scripts, and project-name prose updated; package directories (`analyzer/`, `harness/`, `classifier/`, `calibration/`) keep their functional names. Historical CHANGELOG sections and disclosure records preserve the original name as written at release / send time — only currently-canonical surfaces (README, pyproject, package docs, in-code CLI help) are updated.
+- **Console scripts renamed:** `mcp-scan-*` → `mcpsentry-*` (audit, capture, scaffold-gt, analyze, classify, eval-calibration, lint-scenarios, test). Reinstall after pulling: `pip uninstall mcp-scan -y && pip install -e ".[dev]"`.
+- **README rewritten** to lead with the Anthropic SSRF disclosure narrative (EC2 IAM-credential demo + PR #4226 verified) before test counts / rule tables. The disclosure is the differentiator; test counts are table stakes.
+- **GitHub Pages enabled** at `desledishant10.github.io/mcpsentry`. `_config.yml` excludes `drafts/`, `disclosures/`, `findings/`, source dirs, etc. — only the root README and `docs/` are published as Pages-served HTML.
+- **Embargoed blog draft moved out of `/docs/`** to `/drafts/` to keep it out of Pages indexing pre-2026-08-10. Still in the public repo (open-auditing principle preserved), just not in the Pages-served path.
 
 ### Fixed
 
@@ -19,6 +27,14 @@ All notable changes to MCP-Scan. Format roughly follows [Keep a Changelog](https
 - Test suite: **151 → 164** tests (13 new across W1/W2/W3/W4 positive + negative cases).
 
 ### Disclosure status
+
+- **2026-06-02 — Three new disclosures dispatched.**
+  - `fastmcp-http` v0.1.4 DNS rebinding: public-issue channel of last resort at [ARadRareness/mcp-registry#3](https://github.com/ARadRareness/mcp-registry/issues/3) after `gh api` verified GHSA disabled + maintainer profile has no contact + PyPI lists only a GitHub-noreply email. Public issue body intentionally light on PoC; embargo principle held by keeping source-line evidence in the private finding only.
+  - `mcp-server-fetch-sse` v0.1.1 DNS rebinding + inherited pre-PR-#4226 SSRF: primary disclosure to maintainer-of-record `jadamson@anthropic.com`; parallel courtesy notice to Anthropic Security via `disclosure@anthropic.com` after HackerOne attempt halted at the program triage interstitial (full channel-decision audit trail in [disclosures/2026-06-02-mcp-server-fetch-sse-dns-rebinding.md](disclosures/2026-06-02-mcp-server-fetch-sse-dns-rebinding.md)). `disclosure@` returned a no-reply auto-responder routing back to HackerOne — no human review reached on the brand-attribution flag. Documented; primary technical disclosure to maintainer is the binding channel for the fix.
+  - Day +21 follow-up pings sent on the two May 12 disclosures that remained silent (statespace `mcp-server-http-request`, atrawog `mcp-streamablehttp-proxy` + `mcp-fetch-streamablehttp-server`).
+- **All six DNS-rebind + SSRF survey targets are now under active coordinated disclosure with the same 2026-08-10 embargo** for the class-wide public writeup.
+
+### Disclosure status (earlier)
 
 - **2026-05-22 — mcp-server-fetch fix PR opened AND independently verified.** PR [modelcontextprotocol/servers#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` explicitly fixes [#4143](https://github.com/modelcontextprotocol/servers/issues/4143) with scheme allowlist + reserved-range denylist + **per-redirect validation** (a defense beyond the original disclosure ask). Same demo script that retrieved IAM credentials on EC2 was re-run against the fix branch: now returns `"Fetching private or non-public IP addresses is not allowed"`. Verification comment posted on the PR. Awaiting maintainer approval.
 

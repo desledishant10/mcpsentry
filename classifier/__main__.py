@@ -20,7 +20,7 @@ from .classify import classify_server, classify_tool
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcp-scan-classify")
+    p = argparse.ArgumentParser(prog="mcpsentry-classify")
     p.add_argument("input", type=Path, nargs="?", default=None,
                    help="Path to JSON file; reads stdin if omitted.")
     args = p.parse_args()

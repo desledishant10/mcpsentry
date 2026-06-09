@@ -1,11 +1,11 @@
 [project]
-name = "mcp-scan"
+name = "mcpsentry"
 version = "0.2.0"
 description = "Security testing toolkit for MCP servers and AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "MCP-Scan contributors" }]
+authors = [{ name = "mcpsentry contributors" }]
 keywords = ["mcp", "model-context-protocol", "security", "scanner", "agent-security"]
 dependencies = [
     "mcp>=1.0",
@@ -13,6 +13,13 @@ dependencies = [
     "pydantic>=2.6",
     "PyYAML>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/desledishant10/mcpsentry"
+Repository = "https://github.com/desledishant10/mcpsentry"
+Documentation = "https://desledishant10.github.io/mcpsentry"
+Issues = "https://github.com/desledishant10/mcpsentry/issues"
+Disclosures = "https://github.com/desledishant10/mcpsentry/tree/main/disclosures"
 
 [project.optional-dependencies]
 dev = [
@@ -25,14 +32,14 @@ anthropic = [
 ]
 
 [project.scripts]
-mcp-scan-test = "harness.cli:main"
-mcp-scan-classify = "classifier.__main__:main"
-mcp-scan-analyze = "analyzer.__main__:main"
-mcp-scan-lint-scenarios = "analyzer.lint_scenarios:main"
-mcp-scan-eval-calibration = "calibration.eval:main"
-mcp-scan-capture = "harness.capture:main"
-mcp-scan-scaffold-gt = "calibration.scaffold:main"
-mcp-scan-audit = "harness.audit:main"
+mcpsentry-test = "harness.cli:main"
+mcpsentry-classify = "classifier.__main__:main"
+mcpsentry-analyze = "analyzer.__main__:main"
+mcpsentry-lint-scenarios = "analyzer.lint_scenarios:main"
+mcpsentry-eval-calibration = "calibration.eval:main"
+mcpsentry-capture = "harness.capture:main"
+mcpsentry-scaffold-gt = "calibration.scaffold:main"
+mcpsentry-audit = "harness.audit:main"
 
 [build-system]
 requires = ["hatchling"]

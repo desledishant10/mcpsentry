@@ -832,7 +832,7 @@ _DOTENV_SAFE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".defaults
 # Path-glob allowlist file at the scan root. One pattern per line, `#`
 # comments ignored. Used to suppress known-safe matches without disabling
 # the rule.
-_SECRET_ALLOWLIST_FILENAME = ".mcp-scan-allowlist"
+_SECRET_ALLOWLIST_FILENAME = ".mcpsentry-allowlist"
 
 
 def check_hardcoded_secrets(root: Path) -> list[Finding]:
@@ -846,7 +846,7 @@ def check_hardcoded_secrets(root: Path) -> list[Finding]:
 
     Necessary-but-not-sufficient: a hit on a fixture file is a finding the
     auditor confirms by reading the file. Suppress known-safe matches by
-    listing path globs in `.mcp-scan-allowlist` at the scan root.
+    listing path globs in `.mcpsentry-allowlist` at the scan root.
     """
     findings: list[Finding] = []
     allowlist = _load_secret_allowlist(root)
@@ -912,7 +912,7 @@ def _walk_repo_files(root: Path):
         # scanning a directory that itself lives inside e.g. /site-packages/
         # doesn't drop every file. The original substring-on-absolute-path
         # check broke when the scan root was rooted inside one of the
-        # skip dirs (e.g. `mcp-scan-audit` pointing at an installed
+        # skip dirs (e.g. `mcpsentry-audit` pointing at an installed
         # package under /opt/anaconda3/lib/.../site-packages/<pkg>/).
         try:
             rel = "/" + str(f.relative_to(root)) + "/"

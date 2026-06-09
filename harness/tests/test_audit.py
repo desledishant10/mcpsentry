@@ -1,4 +1,4 @@
-"""Tests for the mcp-scan-audit aggregate CLI."""
+"""Tests for the mcpsentry-audit aggregate CLI."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ async def test_audit_against_mock_server(mock_target):
     server_cmd = target.command
 
     # audit_package uses os.environ for the subprocess by default, but the
-    # mock server needs MCPSCAN_MOCK_CONFIG which mock_target sets in
+    # mock server needs MCPSENTRY_MOCK_CONFIG which mock_target sets in
     # target.env. The current audit flow doesn't plumb env through to
     # capture — for this test, set it in os.environ via monkeypatch-style.
     import os

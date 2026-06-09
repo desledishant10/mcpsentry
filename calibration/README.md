@@ -8,11 +8,11 @@ The fastest way to add a new target — three commands plus one round of hand-la
 
 ```bash
 # 1. Capture the server's tools/list:
-mcp-scan-capture --server-cmd python --server-arg -m --server-arg some_server \
+mcpsentry-capture --server-cmd python --server-arg -m --server-arg some_server \
     -o /tmp/captured.json
 
 # 2. Scaffold a ground-truth skeleton:
-mcp-scan-scaffold-gt /tmp/captured.json --name some_server --language python \
+mcpsentry-scaffold-gt /tmp/captured.json --name some_server --language python \
     --source https://github.com/.../some_server \
     -o ground_truth/some_server.yaml
 
@@ -21,9 +21,9 @@ mcp-scan-scaffold-gt /tmp/captured.json --name some_server --language python \
 #    descriptions, and input schemas are already filled in by step 2.
 
 # 4. Run the eval:
-mcp-scan-eval-calibration some_server
+mcpsentry-eval-calibration some_server
 # Or against the whole corpus:
-mcp-scan-eval-calibration --all
+mcpsentry-eval-calibration --all
 ```
 
 The judgment calls — what capability each tool has, what role each parameter plays, which static rules should fire — stay with the human auditor. The scaffolder removes the rote transcription work.
@@ -32,7 +32,7 @@ For targets you cannot run locally (transport mismatch, missing credentials, pai
 
 ## Aggregation, tuning, and "stable" promotion
 
-5. **Aggregate.** Once 3+ targets are labeled, run `mcp-scan-eval-calibration --all` for cross-target precision/recall. The per-tool diffs list the actionable gaps.
+5. **Aggregate.** Once 3+ targets are labeled, run `mcpsentry-eval-calibration --all` for cross-target precision/recall. The per-tool diffs list the actionable gaps.
 6. **Tune.** Where the report shows gaps, edit [classifier/lexicons.py](../classifier/lexicons.py) (or the analyzer rules) and re-run. Commit the updated JSON report under `reports/` alongside the lexicon change so the diff is reviewable.
 
 ## Hand-labeling rubric

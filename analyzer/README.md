@@ -7,7 +7,7 @@ Static analyzer for MCP servers. Spec: [../docs/static-rules.md](../docs/static-
 **Implemented (Layer 1 — Python AST + captured JSON):**
 
 - Tool discovery via FastMCP-style decorator pattern (`@something.tool` / `@something.tool()`) over `.py` files
-- Tool discovery from captured `tools/list` JSON (`mcp-scan-analyze captured.json`)
+- Tool discovery from captured `tools/list` JSON (`mcpsentry-analyze captured.json`)
 - 9 of 14 v0.1 rules:
   - **MCP-S-001** — Imperative instructions in tool description (heuristic; calibration-tuned against real `mcp-server-fetch`)
   - **MCP-S-002** — Cross-tool reference in tool description (naming-based poisoning; server-level rule)
@@ -18,8 +18,8 @@ Static analyzer for MCP servers. Spec: [../docs/static-rules.md](../docs/static-
   - **MCP-S-007** — Shell command injection in tool handler (subprocess with `shell=True`, `os.system`, `os.popen`)
   - **MCP-S-008** — Database-query tool with no apparent input constraint (heuristic; flags query/sql params without parameterized-query mention)
   - **MCP-S-009** — URL-fetching tool with no apparent allowlist (heuristic; static counterpart to dynamic D-003 SSRF probe; catches real `mcp-server-fetch` + `mcp-server-http-request` SSRF surface from captured `tools/list` alone)
-- `mcp-scan-analyze <path>` CLI with text and JSON output, severity filtering, and CI-friendly exit codes (`--fail-on`)
-- Scenario YAML linter — `mcp-scan-lint-scenarios scenarios/` — catches the null-byte-smuggling class of bug + parse errors + schema violations
+- `mcpsentry-analyze <path>` CLI with text and JSON output, severity filtering, and CI-friendly exit codes (`--fail-on`)
+- Scenario YAML linter — `mcpsentry-lint-scenarios scenarios/` — catches the null-byte-smuggling class of bug + parse errors + schema violations
 
 **Not yet implemented:**
 
@@ -37,20 +37,20 @@ Static analyzer for MCP servers. Spec: [../docs/static-rules.md](../docs/static-
 | `analyze.py`        | `analyze_path()` — orchestrator: discover then run all rules                                 |
 | `types.py`          | `Finding`, `DiscoveredTool` dataclasses                                                      |
 | `__main__.py`       | CLI                                                                                          |
-| `lint_scenarios.py` | YAML lint tool (separate CLI: `mcp-scan-lint-scenarios`)                                     |
+| `lint_scenarios.py` | YAML lint tool (separate CLI: `mcpsentry-lint-scenarios`)                                     |
 | `tests/`            | Rule fixtures (vulnerable + safe examples) + tests; scenario-lint tests                      |
 
 ## Usage
 
 ```bash
 # Analyze an MCP server source tree:
-mcp-scan-analyze /path/to/some-mcp-server
+mcpsentry-analyze /path/to/some-mcp-server
 
 # JSON output, gate at high severity:
-mcp-scan-analyze --format json --fail-on critical ./src
+mcpsentry-analyze --format json --fail-on critical ./src
 
 # Lint scenario files:
-mcp-scan-lint-scenarios scenarios/
+mcpsentry-lint-scenarios scenarios/
 ```
 
 ## Running the tests

@@ -1,4 +1,4 @@
-# Contributing to MCP-Scan
+# Contributing to mcpsentry
 
 Thanks for taking an interest. This project is in alpha and the highest-leverage contributions are:
 
@@ -11,10 +11,10 @@ The least-helpful contributions right now are docstring polish, code reformattin
 ## Quick setup
 
 ```bash
-git clone https://github.com/desledishant10/mcp-scan
-cd mcp-scan
+git clone https://github.com/desledishant10/mcpsentry
+cd mcpsentry
 pip install -e ".[dev]"
-pytest                # should be 106+ passing, 0 failing
+pytest                # should be 164+ passing, 0 failing
 ```
 
 ## How to contribute, by type
@@ -25,11 +25,11 @@ The fastest path to corpus growth and the easiest first contribution.
 
 ```bash
 # 1. Capture the server's tools/list:
-mcp-scan-capture --server-cmd <how-to-launch-it> \
+mcpsentry-capture --server-cmd <how-to-launch-it> \
     -o /tmp/captured.json
 
 # 2. Scaffold a ground-truth skeleton:
-mcp-scan-scaffold-gt /tmp/captured.json --name <pkg-name> \
+mcpsentry-scaffold-gt /tmp/captured.json --name <pkg-name> \
     --language python --source <upstream-url> \
     -o calibration/ground_truth/<pkg-name>.yaml
 
@@ -37,8 +37,8 @@ mcp-scan-scaffold-gt /tmp/captured.json --name <pkg-name> \
 #    known_vulns for each tool. Set `labeled: true` (or remove that line).
 
 # 4. Verify:
-mcp-scan-eval-calibration <pkg-name>
-mcp-scan-eval-calibration --all   # full corpus, ensure no regression
+mcpsentry-eval-calibration <pkg-name>
+mcpsentry-eval-calibration --all   # full corpus, ensure no regression
 
 # 5. PR with:
 #    - calibration/ground_truth/<pkg-name>.yaml
@@ -53,7 +53,7 @@ If your label decisions surface a classifier gap (low recall, FP, etc.), great �
 Spec'd in [docs/static-rules.md](docs/static-rules.md). The bar for landing a new rule is:
 
 1. **Real-world evidence** — at least one captured server where the rule produces a meaningful finding (true positive). "It might catch X eventually" isn't enough.
-2. **No FPs on the existing corpus.** Run `mcp-scan-eval-calibration --all` and individual `mcp-scan-analyze` against every `calibration/reports/captured-*.json` to confirm.
+2. **No FPs on the existing corpus.** Run `mcpsentry-eval-calibration --all` and individual `mcpsentry-analyze` against every `calibration/reports/captured-*.json` to confirm.
 3. **Tests covering the positive case AND the no-FP cases** — minimum 3 tests per rule.
 4. **Comments referencing the evidence** in `analyzer/rules.py` lexicons or detection logic, so the next contributor can see why a particular pattern is in there.
 
@@ -61,7 +61,7 @@ Spec'd in [docs/static-rules.md](docs/static-rules.md). The bar for landing a ne
 
 Schema in [docs/scenario-schema.md](docs/scenario-schema.md). Bar:
 
-1. The scenario YAML passes `mcp-scan-lint-scenarios`.
+1. The scenario YAML passes `mcpsentry-lint-scenarios`.
 2. It runs end-to-end against either the mock server (for plumbing scenarios) or a real PyPI MCP server (for finding-targeted scenarios).
 3. The oracle is precise — false positives are worse than false negatives here, because each scenario costs a real API call when run with `--agent anthropic`.
 4. Scenario file uses `MCP-D-<NNN>-<slug>.yaml` naming and increments the sequence.

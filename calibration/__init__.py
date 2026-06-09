@@ -1,1 +1,1 @@
-"""Calibration corpus and eval driver for MCP-Scan."""
+"""Calibration corpus and eval driver for mcpsentry."""

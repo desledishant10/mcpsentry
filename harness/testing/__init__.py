@@ -1,4 +1,4 @@
-"""Test-support utilities for the MCP-Scan harness.
+"""Test-support utilities for the mcpsentry harness.
 
 The mock server is intentionally in the production package (not in tests/)
 so it can also serve as a reference implementation for scenario authors

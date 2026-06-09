@@ -1,6 +1,6 @@
 # Static Analyzer Ruleset (v0.1)
 
-This document specifies the detection rules for MCP-Scan's static analyzer (Phase 1). Each rule has a stable ID, applies to one or both supported languages, and maps back to the attack-surface taxonomy used by the dynamic harness.
+This document specifies the detection rules for mcpsentry's static analyzer (Phase 1). Each rule has a stable ID, applies to one or both supported languages, and maps back to the attack-surface taxonomy used by the dynamic harness.
 
 ## Conventions
 
@@ -221,7 +221,7 @@ Findings are emitted as a single JSON document plus a human-readable Markdown re
   "function": "read_doc",
   "message": "Tool parameter 'path' flows to open() without root containment check.",
   "evidence": "path = req.params.path\\nreturn open(path).read()",
-  "remediation_url": "https://github.com/<org>/mcp-scan/blob/main/docs/remediations/MCP-S-006.md"
+  "remediation_url": "https://github.com/<org>/mcpsentry/blob/main/docs/remediations/MCP-S-006.md"
 }
 ```
 

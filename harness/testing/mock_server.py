@@ -2,7 +2,7 @@
 
 Launches as a subprocess (`python -m harness.testing.mock_server`) and
 reads its tool config from the JSON file pointed to by the env var
-`MCPSCAN_MOCK_CONFIG`. Each tool has a `behavior` that controls how
+`MCPSENTRY_MOCK_CONFIG`. Each tool has a `behavior` that controls how
 `tools/call` responds:
 
 - `echo`                    Returns the call arguments as a JSON string.
@@ -43,7 +43,7 @@ from mcp.server.stdio import stdio_server
 
 
 def _load_config() -> dict[str, Any]:
-    path = os.environ.get("MCPSCAN_MOCK_CONFIG")
+    path = os.environ.get("MCPSENTRY_MOCK_CONFIG")
     if not path:
         return {"tools": []}
     return json.loads(Path(path).read_text())
@@ -67,7 +67,7 @@ async def _execute_behavior(behavior: str, args: dict[str, Any]) -> str:
 
 async def main() -> None:
     config = _load_config()
-    srv: Server = Server("mcp-scan-mock")
+    srv: Server = Server("mcpsentry-mock")
 
     @srv.list_tools()
     async def handle_list_tools() -> list[types.Tool]:
@@ -96,7 +96,7 @@ async def main() -> None:
         return [types.TextContent(type="text", text=text)]
 
     init_options = InitializationOptions(
-        server_name="mcp-scan-mock",
+        server_name="mcpsentry-mock",
         server_version="0.1.0",
         capabilities=srv.get_capabilities(
             notification_options=NotificationOptions(),

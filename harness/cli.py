@@ -13,7 +13,7 @@ from .runner import Target, make_agent_factory, run_scenario
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcp-scan-test")
+    p = argparse.ArgumentParser(prog="mcpsentry-test")
     p.add_argument("scenario", type=Path, help="Path to a scenario YAML file.")
     p.add_argument("--server-cmd", required=True,
                    help="Command to launch the MCP server under test (stdio transport).")
