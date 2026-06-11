@@ -1,0 +1,285 @@
+{
+  "n_targets": 11,
+  "n_tools": 87,
+  "by_tag": {
+    "fs_read": {
+      "tp": 26,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "exec": {
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "fs_write": {
+      "tp": 16,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "net_egress": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "db_query": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 2,
+      "precision": 1.0,
+      "recall": 0.3333333333333333
+    },
+    "db_write": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1.0,
+      "recall": 0.5
+    }
+  },
+  "param_role_accuracy": 0.9,
+  "param_role_correct": 36,
+  "param_role_total": 40,
+  "per_target": {
+    "example_server": {
+      "target_name": "example_server",
+      "n_tools": 9,
+      "by_tag": {
+        "fs_read": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "exec": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": 0.8888888888888888,
+      "param_role_correct": 8,
+      "param_role_total": 9,
+      "per_tool_diffs": []
+    },
+    "mcp-server-aidd": {
+      "target_name": "mcp-server-aidd",
+      "n_tools": 33,
+      "by_tag": {
+        "fs_write": {
+          "tp": 11,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "fs_read": {
+          "tp": 14,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "exec": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": null,
+      "param_role_correct": 0,
+      "param_role_total": 0,
+      "per_tool_diffs": []
+    },
+    "mcp-server-anki": {
+      "target_name": "mcp-server-anki",
+      "n_tools": 8,
+      "by_tag": {},
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 1,
+      "param_role_total": 1,
+      "per_tool_diffs": []
+    },
+    "mcp-server-fetch": {
+      "target_name": "mcp-server-fetch",
+      "n_tools": 1,
+      "by_tag": {
+        "net_egress": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 1,
+      "param_role_total": 1,
+      "per_tool_diffs": []
+    },
+    "mcp-server-file-finder": {
+      "target_name": "mcp-server-file-finder",
+      "n_tools": 1,
+      "by_tag": {
+        "fs_read": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": null,
+      "param_role_correct": 0,
+      "param_role_total": 0,
+      "per_tool_diffs": []
+    },
+    "mcp-server-git": {
+      "target_name": "mcp-server-git",
+      "n_tools": 12,
+      "by_tag": {
+        "fs_read": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "fs_write": {
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 12,
+      "param_role_total": 12,
+      "per_tool_diffs": []
+    },
+    "mcp-server-http-request": {
+      "target_name": "mcp-server-http-request",
+      "n_tools": 5,
+      "by_tag": {
+        "net_egress": {
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 5,
+      "param_role_total": 5,
+      "per_tool_diffs": []
+    },
+    "mcp-server-memory": {
+      "target_name": "mcp-server-memory",
+      "n_tools": 9,
+      "by_tag": {},
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 1,
+      "param_role_total": 1,
+      "per_tool_diffs": []
+    },
+    "mcp-server-shell": {
+      "target_name": "mcp-server-shell",
+      "n_tools": 1,
+      "by_tag": {
+        "exec": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "param_role_accuracy": 0.5,
+      "param_role_correct": 1,
+      "param_role_total": 2,
+      "per_tool_diffs": []
+    },
+    "mcp-server-sqlite": {
+      "target_name": "mcp-server-sqlite",
+      "n_tools": 6,
+      "by_tag": {
+        "db_query": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 2,
+          "precision": 1.0,
+          "recall": 0.3333333333333333
+        },
+        "db_write": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.5
+        }
+      },
+      "param_role_accuracy": 0.6,
+      "param_role_correct": 3,
+      "param_role_total": 5,
+      "per_tool_diffs": [
+        {
+          "tool": "create_table",
+          "expected_caps": [
+            "db_write"
+          ],
+          "predicted_caps": [],
+          "missing": [
+            "db_write"
+          ],
+          "spurious": []
+        },
+        {
+          "tool": "list_tables",
+          "expected_caps": [
+            "db_query"
+          ],
+          "predicted_caps": [],
+          "missing": [
+            "db_query"
+          ],
+          "spurious": []
+        },
+        {
+          "tool": "describe_table",
+          "expected_caps": [
+            "db_query"
+          ],
+          "predicted_caps": [],
+          "missing": [
+            "db_query"
+          ],
+          "spurious": []
+        }
+      ]
+    },
+    "mcp-server-time": {
+      "target_name": "mcp-server-time",
+      "n_tools": 2,
+      "by_tag": {},
+      "param_role_accuracy": 1.0,
+      "param_role_correct": 4,
+      "param_role_total": 4,
+      "per_tool_diffs": []
+    }
+  }
+}

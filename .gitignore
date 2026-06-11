@@ -49,3 +49,4 @@ calibration/reports/captured-mock-*.json
 .env.local
 *.pem
 *.key
+sqlite_mcp_server.db

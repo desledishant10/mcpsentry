@@ -1,0 +1,111 @@
+target_name: mcp-server-sqlite
+source: https://pypi.org/project/mcp-server-sqlite/
+language: python
+mcp_spec_version: '2025-06-18'
+labeled: true
+notes: |
+  SQLite MCP server v2025.4.25 from PyPI. Captured directly from the
+  installed package via `mcp-server-sqlite --db-path /tmp/audit.sqlite`
+  (the console script — `python -m mcp_server_sqlite` is not exposed
+  since the package has no `__main__.py`).
+
+  Six tools across read / write / DDL / metadata / memo surfaces. Exercises
+  the db_query, db_write, and (loosely) the memo-style content-write tag.
+  Notable that every tool that takes user input takes it as a raw SQL
+  string with no parameterization marker in the description — a positive
+  control for MCP-S-008 (SQL injection class), which fires on three of
+  the four query/DDL tools. MCP-S-005 also fires on the server-level
+  combination of db_query + db_write (full DB compromise on injection).
+
+tools:
+  - name: read_query
+    description: Execute a SELECT query on the SQLite database
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: SELECT SQL query to execute
+      required:
+        - query
+    capabilities:
+      - db_query
+    parameter_roles:
+      query: query
+    known_vulns:
+      - MCP-S-008
+
+  - name: write_query
+    description: Execute an INSERT, UPDATE, or DELETE query on the SQLite database
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: SQL query to execute
+      required:
+        - query
+    capabilities:
+      - db_write
+    parameter_roles:
+      query: query
+    known_vulns:
+      - MCP-S-008
+
+  - name: create_table
+    description: Create a new table in the SQLite database
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: CREATE TABLE SQL statement
+      required:
+        - query
+    capabilities:
+      - db_write
+    parameter_roles:
+      query: query
+    known_vulns:
+      - MCP-S-008
+
+  - name: list_tables
+    description: List all tables in the SQLite database
+    input_schema:
+      type: object
+      properties: {}
+    capabilities:
+      - db_query
+    parameter_roles: {}
+    known_vulns: []
+
+  - name: describe_table
+    description: Get the schema information for a specific table
+    input_schema:
+      type: object
+      properties:
+        table_name:
+          type: string
+          description: Name of the table to describe
+      required:
+        - table_name
+    capabilities:
+      - db_query
+    parameter_roles:
+      table_name: id
+    known_vulns: []
+
+  - name: append_insight
+    description: Add a business insight to the memo
+    input_schema:
+      type: object
+      properties:
+        insight:
+          type: string
+          description: Business insight discovered from data analysis
+      required:
+        - insight
+    capabilities: []
+    parameter_roles:
+      insight: content
+    known_vulns: []

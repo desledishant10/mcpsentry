@@ -35,10 +35,20 @@ targets:
     notes: Git operations server. 12 tools (status/diff/log/show/branch as fs_read, commit/add/reset/checkout/create_branch as fs_write). Labeled from direct capture of installed package.
 
   - name: mcp-server-sqlite
-    source: https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite
+    source: https://pypi.org/project/mcp-server-sqlite/
     language: python
-    status: queued
-    notes: SQLite query server. Tests db_query / db_write detection.
+    status: labeled
+    notes: |
+      SQLite MCP server v2025.4.25 from PyPI. 6 tools: read_query,
+      write_query, create_table, list_tables, describe_table,
+      append_insight. Captured via the `mcp-server-sqlite` console
+      script. Surfaced two classifier gaps worth tuning: create_table's
+      "CREATE TABLE" description doesn't lex as db_write (lexicon
+      gap — should pick up DDL verbs), and list_tables / describe_table
+      don't lex as db_query (no SELECT/SHOW/LIST/DESCRIBE keyword
+      coverage in the db_query lexicon). 3 tools also fire MCP-S-008
+      (positive control for SQL injection class) + 1 MCP-S-005
+      (server-level db_query+db_write overbroad combination).
 
   - name: mcp-server-filesystem
     source: https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem
