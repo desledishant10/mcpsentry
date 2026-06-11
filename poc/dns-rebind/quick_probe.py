@@ -12,8 +12,18 @@ The server doesn't distinguish; that's the bug. DNS rebinding is just the
 mechanism that lets a browser do this from an unrelated origin.
 
 Usage:
-    python3 quick_probe.py             # default: pins mcp-streamablehttp-proxy v0.2.0
-    python3 quick_probe.py --no-install  # skip install if package is already on PATH
+    python3 quick_probe.py                       # default: pins mcp-streamablehttp-proxy v0.2.0
+    python3 quick_probe.py --no-install          # skip install if package is already on PATH
+    python3 quick_probe.py --exit-nonzero-on-vuln  # CI-friendly: nonzero exit when vuln confirmed
+
+Exit codes (default):
+    0  vulnerability CONFIRMED (PoC succeeded as expected)
+    3  vulnerability NOT confirmed (server rejected hostile headers — patched or wrong target)
+    2  test infrastructure failure (server didn't bind, install failed)
+
+Pass --exit-nonzero-on-vuln to invert: exit 1 on confirmed vulnerability,
+exit 0 on "server rejected (good)". Useful for monitoring / regression CI
+once a fix has shipped to verify the server stays patched.
 
 Requires: Python 3.10+. Uses only stdlib + `mcp-streamablehttp-proxy` itself.
 """
@@ -130,6 +140,12 @@ def main() -> int:
         action="store_true",
         help="Skip pip install — assume mcp-streamablehttp-proxy + mcp-server-time are already installed.",
     )
+    p.add_argument(
+        "--exit-nonzero-on-vuln",
+        action="store_true",
+        help="Exit 1 when the vulnerability is confirmed instead of the default 0. "
+        "Useful for monitoring scripts that should alarm when the vulnerable shape is still present.",
+    )
     args = p.parse_args()
 
     if not args.no_install:
@@ -177,7 +193,7 @@ def main() -> int:
         # ── verdict ───────────────────────────────────────────────────────
         print("─" * 65)
         if ok2 and ok3:
-            print("VERDICT: VULNERABLE")
+            print("VERDICT: VULNERABLE  (PoC succeeded — vulnerability confirmed as expected)")
             print()
             print("  Server accepted MCP initialize requests carrying both a")
             print("  hostile Origin header AND a hostile Host header — exactly the")
@@ -189,16 +205,20 @@ def main() -> int:
             print("  For the full reproduction including the browser-side rebind:")
             print("    make demo-full")
             print()
-            return 1  # non-zero — vulnerability confirmed
+            # Default exit 0: PoC succeeded as expected. The user can pass
+            # --exit-nonzero-on-vuln to invert (CI / monitoring use case).
+            return 1 if args.exit_nonzero_on_vuln else 0
         else:
-            print("VERDICT: SERVER REJECTED HOSTILE HEADERS")
+            print("VERDICT: SERVER REJECTED HOSTILE HEADERS  (vulnerability NOT confirmed)")
             print()
             print("  The server returned non-MCP responses to one or both of the")
             print("  hostile-header probes. Either the package has been patched,")
             print("  middleware has been added, or the test is running against a")
             print("  different version than mcp-streamablehttp-proxy==0.2.0.")
             print()
-            return 0
+            # Unexpected outcome — return 3 (distinct from infrastructure-2)
+            # unless the user flipped the semantics.
+            return 0 if args.exit_nonzero_on_vuln else 3
     finally:
         print("[+] cleanup: terminating victim")
         server.terminate()
