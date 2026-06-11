@@ -16,12 +16,12 @@
 
 <h1>DNS-rebind PoC — attacker page</h1>
 
-<p>This page is served from <code id="origin"></code>. When you visit it, the browser caches the DNS resolution of <code>evil.example</code> as the attacker's IP. After the 1-second TTL, the browser re-resolves and now gets the victim's IP — but the page's origin is still <code>evil.example:3000</code>, so the fetch is considered same-origin under SOP.</p>
+<p>This page is served from <code id="origin"></code>. The browser will POST to <code>/mcp</code> on this same origin. In a real DNS-rebind attack, the second-and-later requests would re-resolve to the victim's IP — the browser thinks it's still talking to <code>evil.example:3000</code>, but at the network layer it's actually hitting the locally-running MCP server.</p>
 
-<p>If <code>mcp-streamablehttp-proxy</code> v0.2.0 is bound to <code>localhost:3000</code> with no <code>Origin</code> / <code>Host</code> validation (which it is by default), the post-rebind fetch will succeed.</p>
+<p>Since Chrome's internal DNS cache has a 60-second minimum TTL (regardless of what the DNS server claims), reliably reproducing DNS rebinding in a headless test requires Singularity-style infrastructure. This PoC uses the simpler equivalent: <strong>the attacker nginx proxies <code>/mcp</code> to the victim</strong>, forwarding the browser-set <code>Origin: http://evil.example:3000</code> and <code>Host: evil.example:3000</code> headers unchanged. The vulnerability under test — <code>mcp-streamablehttp-proxy</code> v0.2.0 accepting requests with mismatched Origin/Host — is identical in both attack paths.</p>
 
 <h2>Live trace</h2>
-<pre id="log">Waiting for rebind window…</pre>
+<pre id="log">Loading…</pre>
 
 <h2>Result</h2>
 <pre id="result" class="pending">… in progress …</pre>

