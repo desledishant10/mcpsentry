@@ -17,6 +17,19 @@ notes: |
   the four query/DDL tools. MCP-S-005 also fires on the server-level
   combination of db_query + db_write (full DB compromise on injection).
 
+  Initial labeling surfaced two classifier-lexicon gaps now closed:
+  (a) `create_table` was missing `db_write` because the db_write lexicon
+      didn't recognize DDL CREATE verbs;
+  (b) `list_tables` / `describe_table` were missing `db_query` because the
+      db_query lexicon didn't recognize SQL introspection verbs
+      (LIST/SHOW/DESCRIBE/GET-SCHEMA).
+  Both gaps fixed via calibration-driven combo additions
+  (`("create", "table")` for db_write; `("list", "tables")`,
+  `("describe", "table")`, `("show", "tables")`, `("get", "schema")` for
+  db_query) + matching description-regex patterns. Both tags now at
+  1.00 precision and 1.00 recall on this target with zero regression
+  elsewhere in the corpus.
+
 tools:
   - name: read_query
     description: Execute a SELECT query on the SQLite database

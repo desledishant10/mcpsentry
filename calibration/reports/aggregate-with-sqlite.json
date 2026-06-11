@@ -31,18 +31,18 @@
       "recall": 1.0
     },
     "db_query": {
-      "tp": 1,
+      "tp": 3,
       "fp": 0,
-      "fn": 2,
+      "fn": 0,
       "precision": 1.0,
-      "recall": 0.3333333333333333
+      "recall": 1.0
     },
     "db_write": {
-      "tp": 1,
+      "tp": 2,
       "fp": 0,
-      "fn": 1,
+      "fn": 0,
       "precision": 1.0,
-      "recall": 0.5
+      "recall": 1.0
     }
   },
   "param_role_accuracy": 0.9,
@@ -219,58 +219,24 @@
       "n_tools": 6,
       "by_tag": {
         "db_query": {
-          "tp": 1,
+          "tp": 3,
           "fp": 0,
-          "fn": 2,
+          "fn": 0,
           "precision": 1.0,
-          "recall": 0.3333333333333333
+          "recall": 1.0
         },
         "db_write": {
-          "tp": 1,
+          "tp": 2,
           "fp": 0,
-          "fn": 1,
+          "fn": 0,
           "precision": 1.0,
-          "recall": 0.5
+          "recall": 1.0
         }
       },
       "param_role_accuracy": 0.6,
       "param_role_correct": 3,
       "param_role_total": 5,
-      "per_tool_diffs": [
-        {
-          "tool": "create_table",
-          "expected_caps": [
-            "db_write"
-          ],
-          "predicted_caps": [],
-          "missing": [
-            "db_write"
-          ],
-          "spurious": []
-        },
-        {
-          "tool": "list_tables",
-          "expected_caps": [
-            "db_query"
-          ],
-          "predicted_caps": [],
-          "missing": [
-            "db_query"
-          ],
-          "spurious": []
-        },
-        {
-          "tool": "describe_table",
-          "expected_caps": [
-            "db_query"
-          ],
-          "predicted_caps": [],
-          "missing": [
-            "db_query"
-          ],
-          "spurious": []
-        }
-      ]
+      "per_tool_diffs": []
     },
     "mcp-server-time": {
       "target_name": "mcp-server-time",

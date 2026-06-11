@@ -204,6 +204,22 @@ CAPABILITY_LEXICONS: dict[str, dict] = {
             ("mongo", "find"),
             ("redis", "get"),
             ("run", "query"),
+            # Calibration-driven (mcp-server-sqlite list_tables / describe_table):
+            # DB-introspection-style operations are read queries against the
+            # catalog, not file-system list operations. The disambiguation is
+            # the second token — `table`/`tables`/`schema`/`database` are
+            # never the noun in fs-style `list_files` / `describe_file`
+            # tools, so the combo is safe.
+            ("list", "tables"),
+            ("list", "table"),
+            ("list", "schema"),
+            ("list", "database"),
+            ("describe", "table"),
+            ("describe", "schema"),
+            ("describe", "database"),
+            ("show", "tables"),
+            ("show", "schema"),
+            ("get", "schema"),
         ],
         "desc_patterns": [
             r"\bexecutes? .{0,20}(sql\s+)?query\b",
@@ -211,6 +227,14 @@ CAPABILITY_LEXICONS: dict[str, dict] = {
             r"\bselects? .{0,20}from\b",
             r"\b(reads?|fetches?|loads?) .{0,20}\bdatabase\b",
             r"\bsql\b.{0,20}\bquery\b",
+            # Calibration-driven (mcp-server-sqlite list_tables description
+            # "List all tables in the SQLite database"):
+            r"\blists? .{0,30}\b(tables?|schema|databases?)\b",
+            # Calibration-driven (mcp-server-sqlite describe_table description
+            # "Get the schema information for a specific table"):
+            r"\b(describes?|gets?|fetches?|returns?|retrieves?) .{0,30}\b(schema|table\s+structure|table\s+(info|information)|column\s+(info|information))\b",
+            # SQL SHOW TABLES / SHOW DATABASES:
+            r"\b(shows?|displays?) .{0,30}\b(tables?|databases?|schema)\b",
         ],
         "param_role": "query",
     },
@@ -225,6 +249,15 @@ CAPABILITY_LEXICONS: dict[str, dict] = {
             ("mongo", "insert"),
             ("redis", "set"),
             ("execute", "insert"),
+            # Calibration-driven (mcp-server-sqlite create_table): DDL CREATE
+            # against a database/table/schema/index is a write. Without the
+            # DB-specific second token, `create_branch` / `create_file` etc.
+            # would FP — the combo is the disambiguator. `create` alone is too
+            # generic for name_tokens.
+            ("create", "table"),
+            ("create", "schema"),
+            ("create", "index"),
+            ("create", "database"),
         ],
         "desc_patterns": [
             r"\binserts? .{0,20}(database|table|record|row)",
@@ -235,6 +268,11 @@ CAPABILITY_LEXICONS: dict[str, dict] = {
             r"\bdeletes? .{0,30}\b(table|database|record|rows?|collection)\b",
             r"\bdrops? .{0,20}(table|database|index)",
             r"\bwrites? .{0,20}database\b",
+            # Calibration-driven (mcp-server-sqlite create_table description
+            # "Create a new table in the SQLite database"): DDL CREATE on a
+            # table / schema / index / database is a write operation.
+            r"\bcreates? .{0,30}\b(table|schema|index|database)\b",
+            r"\b(alter|drop)s? .{0,30}\b(table|schema|index|database)\b",
         ],
         "param_role": "query",
     },
