@@ -1,6 +1,6 @@
 # Static Analyzer Ruleset (current state)
 
-This document specifies the detection rules for mcpsentry's static analyzer. Each rule has a stable ID, applies to one or both supported languages, and maps back to the attack-surface taxonomy used by the dynamic harness.
+This document specifies the detection rules for mcp-witness's static analyzer. Each rule has a stable ID, applies to one or both supported languages, and maps back to the attack-surface taxonomy used by the dynamic harness.
 
 **Status:** 14 of 14 v0.1 rules shipped (S-001 through S-014). S-014 received four patches (W1–W4) post-v0.1 surfaced by the [DNS-rebinding survey](../findings/2026-05-12-dns-rebinding-survey.md); those patches are documented in the S-014 section below as a "Detector evolution" subsection. Three real-world vulnerability classes have been surfaced and disclosed by the ruleset: outbound SSRF (S-009 → 2 packages), DNS rebinding (S-014 → 4 packages), and prompt-template injection (S-013 → benign findings to date). See [findings/](../findings/) for the full audit trail.
 
@@ -266,7 +266,7 @@ Findings are emitted as a single JSON document plus a human-readable Markdown re
   "function": "read_doc",
   "message": "Tool parameter 'path' flows to open() without root containment check.",
   "evidence": "path = req.params.path\\nreturn open(path).read()",
-  "remediation_url": "https://github.com/<org>/mcpsentry/blob/main/docs/remediations/MCP-S-006.md"
+  "remediation_url": "https://github.com/<org>/mcp-witness/blob/main/docs/remediations/MCP-S-006.md"
 }
 ```
 

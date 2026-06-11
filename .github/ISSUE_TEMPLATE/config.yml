@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or discussion
-    url: https://github.com/desledishant10/mcpsentry/discussions
+    url: https://github.com/desledishant10/mcp-witness/discussions
     about: For questions, ideas, or general discussion — please use Discussions instead of opening an issue.
-  - name: Security vulnerability in mcpsentry itself
-    url: https://github.com/desledishant10/mcpsentry/blob/main/SECURITY.md
+  - name: Security vulnerability in mcp-witness itself
+    url: https://github.com/desledishant10/mcp-witness/blob/main/SECURITY.md
     about: Please don't open a public issue for vulnerabilities in this project. Email or use private reporting per SECURITY.md.

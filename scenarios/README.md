@@ -1,6 +1,6 @@
 # Dynamic Scenarios
 
-Library of mcpsentry dynamic test scenarios. Format specified in [../docs/scenario-schema.md](../docs/scenario-schema.md).
+Library of mcp-witness dynamic test scenarios. Format specified in [../docs/scenario-schema.md](../docs/scenario-schema.md).
 
 ## v0.1 — seed set (5 scenarios)
 

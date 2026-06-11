@@ -723,7 +723,7 @@ def test_s010_redacts_evidence(tmp_path):
 
 def test_s010_respects_allowlist(tmp_path):
     (tmp_path / "config.py").write_text('AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n')
-    (tmp_path / ".mcpsentry-allowlist").write_text("config.py\n")
+    (tmp_path / ".mcp-witness-allowlist").write_text("config.py\n")
     findings = check_hardcoded_secrets(tmp_path)
     assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
 
@@ -731,14 +731,14 @@ def test_s010_respects_allowlist(tmp_path):
 def test_s010_allowlist_glob(tmp_path):
     (tmp_path / "fixtures").mkdir()
     (tmp_path / "fixtures" / "creds.py").write_text('AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n')
-    (tmp_path / ".mcpsentry-allowlist").write_text("fixtures/*\n")
+    (tmp_path / ".mcp-witness-allowlist").write_text("fixtures/*\n")
     findings = check_hardcoded_secrets(tmp_path)
     assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
 
 
 def test_s010_allowlist_comments_and_blank_lines(tmp_path):
     (tmp_path / "config.py").write_text('AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"\n')
-    (tmp_path / ".mcpsentry-allowlist").write_text("# allow this test fixture\n\nconfig.py\n")
+    (tmp_path / ".mcp-witness-allowlist").write_text("# allow this test fixture\n\nconfig.py\n")
     findings = check_hardcoded_secrets(tmp_path)
     assert [f for f in findings if f.rule_id == "MCP-S-010"] == []
 

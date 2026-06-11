@@ -32,7 +32,7 @@ THIS IS THE BAR. The proposal must reference at least one captured server
 where this rule would produce a true-positive finding. "Might catch X
 eventually" isn't enough.
 
-Capture path: mcpsentry-capture --server-cmd ... -o /tmp/x.json then point
+Capture path: mcp-witness-capture --server-cmd ... -o /tmp/x.json then point
 at the captured file. Or, for AST rules, point at the source tree + line
 range.
 -->
@@ -71,7 +71,7 @@ Every rule has FP modes. Calling them out upfront speeds review.
 
 - [ ] Positive test (vulnerable example fires)
 - [ ] Negative test (safe example doesn't fire)
-- [ ] No-regression test against the full calibration corpus (`mcpsentry-eval-calibration --all`)
+- [ ] No-regression test against the full calibration corpus (`mcp-witness-eval-calibration --all`)
 
 ## Related
 

@@ -1,4 +1,4 @@
-"""mcpsentry-audit — one-shot audit of a PyPI-installed MCP server.
+"""mcp-witness-audit — one-shot audit of a PyPI-installed MCP server.
 
 Single command that:
   1. (optional) pip installs the package
@@ -7,7 +7,7 @@ Single command that:
   4. Runs the capability classifier
   5. Prints a human-readable summary OR JSON
 
-Designed for fast triage: `mcpsentry-audit mcp-server-fetch` should be
+Designed for fast triage: `mcp-witness-audit mcp-server-fetch` should be
 all that's needed to determine "is this server worth a deeper look?"
 """
 
@@ -174,7 +174,7 @@ def _format_text(report: dict) -> str:
 
 def main() -> int:
     p = argparse.ArgumentParser(
-        prog="mcpsentry-audit", description="One-shot audit of a PyPI-installed MCP server."
+        prog="mcp-witness-audit", description="One-shot audit of a PyPI-installed MCP server."
     )
     p.add_argument("package", help="PyPI package name (e.g. mcp-server-fetch)")
     p.add_argument(

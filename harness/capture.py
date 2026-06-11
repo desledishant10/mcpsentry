@@ -2,8 +2,8 @@
 
 Used to assemble calibration-corpus entries — connect to any stdio MCP
 server, dump every tool definition, then either feed the JSON to
-`mcpsentry-classify` (one-shot classification check) or to
-`mcpsentry-scaffold-gt` (start a new ground-truth file).
+`mcp-witness-classify` (one-shot classification check) or to
+`mcp-witness-scaffold-gt` (start a new ground-truth file).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ async def capture(target: Target) -> dict:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcpsentry-capture")
+    p = argparse.ArgumentParser(prog="mcp-witness-capture")
     p.add_argument(
         "--server-cmd", required=True, help="Command to launch the MCP server (stdio transport)."
     )

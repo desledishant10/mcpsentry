@@ -28,7 +28,7 @@ For HTTP-fetch tools — the most common kind of MCP server, by my PyPI survey �
 
 ### Discovery: a static rule on the captured tools/list
 
-I built [mcpsentry](https://github.com/desledishant10/mcpsentry) (formerly mcp-scan; renamed mid-survey to avoid collision with an established tool of the same name) as a security testing toolkit for MCP servers — static analyzer + dynamic harness + capability classifier. The static-analyzer rule **MCP-S-009** flags URL-fetching tools that lack any apparent allowlist:
+I built [mcp-witness](https://github.com/desledishant10/mcp-witness) (formerly mcp-scan; renamed mid-survey to avoid collision with an established tool of the same name) as a security testing toolkit for MCP servers — static analyzer + dynamic harness + capability classifier. The static-analyzer rule **MCP-S-009** flags URL-fetching tools that lack any apparent allowlist:
 
 - the tool has a parameter named `url` / `uri` / `endpoint` or with `format: uri`, *and*
 - no JSON Schema `pattern` / `const` / `enum` constraint on that parameter, *and*
@@ -37,8 +37,8 @@ I built [mcpsentry](https://github.com/desledishant10/mcpsentry) (formerly mcp-s
 Heuristic — necessary-but-not-sufficient — but high-precision "review this." Run against the captured `tools/list` from `mcp-server-fetch`:
 
 ```bash
-$ mcpsentry-capture --server-cmd python --server-arg=-m --server-arg=mcp_server_fetch -o /tmp/fetch.json
-$ mcpsentry-analyze /tmp/fetch.json
+$ mcp-witness-capture --server-cmd python --server-arg=-m --server-arg=mcp_server_fetch -o /tmp/fetch.json
+$ mcp-witness-analyze /tmp/fetch.json
 [HIGH] MCP-S-009  <captured>:0  fetch
     Tool has URL parameter(s) ['url'] with no schema-level constraint and no
     validation keywords in the description. Likely no scheme allowlist or
@@ -77,7 +77,7 @@ Contents of http://169.254.169.254/latest/meta-data/iam/security-credentials/mcp
 }
 ```
 
-A working AWS IAM credential triplet, returned by an MCP tool, retrievable by anything that can convince an agent to call `fetch("http://169.254.169.254/...")`. The role and instance were torn down within minutes of capture; the credentials expired with their normal lifetime. Full reproduction runbook is in the [mcpsentry repo](https://github.com/desledishant10/mcpsentry/blob/main/docs/audit-runbook-ec2-ssrf-verification.md).
+A working AWS IAM credential triplet, returned by an MCP tool, retrievable by anything that can convince an agent to call `fetch("http://169.254.169.254/...")`. The role and instance were torn down within minutes of capture; the credentials expired with their normal lifetime. Full reproduction runbook is in the [mcp-witness repo](https://github.com/desledishant10/mcp-witness/blob/main/docs/audit-runbook-ec2-ssrf-verification.md).
 
 From an attacker's perspective the chain is: prompt injection → agent calls `fetch` with IMDS URL → credentials returned → attacker pivots to whatever the IAM role permits.
 
@@ -195,7 +195,7 @@ For MCP server authors building anything that touches network egress, inbound HT
 For MCP host operators:
 
 1. **Set IMDSv2 to Required** on every cloud instance running an MCP host. Single highest-leverage host-level mitigation.
-2. **Audit your MCP server inventory.** Run [mcpsentry](https://github.com/desledishant10/mcpsentry) (or an equivalent) against every server you've enabled and flag any with `MCP-S-009` (outbound SSRF) or `MCP-S-014` (inbound DNS rebind) findings.
+2. **Audit your MCP server inventory.** Run [mcp-witness](https://github.com/desledishant10/mcp-witness) (or an equivalent) against every server you've enabled and flag any with `MCP-S-009` (outbound SSRF) or `MCP-S-014` (inbound DNS rebind) findings.
 3. **Treat MCP servers as untrusted code** that runs with the agent's effective network identity and the operator's effective browser-localhost identity. They are — by design — speaking to the model on your behalf.
 
 For the MCP spec itself:
@@ -204,12 +204,12 @@ The spec does not currently mandate validation patterns for HTTP-class tools. Wh
 
 ## About the tool
 
-[mcpsentry](https://github.com/desledishant10/mcpsentry) is open source under Apache 2.0. It includes the static analyzer (14 rules, 164 tests), the dynamic harness (7 scenarios, two agent drivers), the calibration corpus of 10 hand-labeled MCP servers, the EC2 reproduction runbook used for the SSRF verification, and the full audit trail of all six disclosures covered in this post — including the channel-decision audit trails for the four that needed unusual disclosure paths. If you want to audit your own MCP servers, three commands get you started:
+[mcp-witness](https://github.com/desledishant10/mcp-witness) is open source under Apache 2.0. It includes the static analyzer (14 rules, 164 tests), the dynamic harness (7 scenarios, two agent drivers), the calibration corpus of 10 hand-labeled MCP servers, the EC2 reproduction runbook used for the SSRF verification, and the full audit trail of all six disclosures covered in this post — including the channel-decision audit trails for the four that needed unusual disclosure paths. If you want to audit your own MCP servers, three commands get you started:
 
 ```bash
 pip install mcp-server-fetch          # or any MCP server you want to audit
-mcpsentry-capture --server-cmd python --server-arg=-m --server-arg=mcp_server_fetch -o /tmp/tools.json
-mcpsentry-analyze /tmp/tools.json
+mcp-witness-capture --server-cmd python --server-arg=-m --server-arg=mcp_server_fetch -o /tmp/tools.json
+mcp-witness-analyze /tmp/tools.json
 ```
 
 The runbook, all findings, and the disclosure record live in the repo; contributions are welcome.

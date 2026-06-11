@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: A reproducible problem with mcpsentry (analyzer, harness, classifier, calibration, or any CLI)
+about: A reproducible problem with mcp-witness (analyzer, harness, classifier, calibration, or any CLI)
 title: "[BUG] "
 labels: bug
 assignees: ''
@@ -18,7 +18,7 @@ assignees: ''
 
 ```bash
 # Minimal command(s) that reproduce the bug.
-mcpsentry-... 
+mcp-witness-... 
 ```
 
 If the bug involves a specific MCP server, ideally a public PyPI package, name it:
@@ -30,10 +30,10 @@ If the bug involves a specific source tree (e.g. analyzer false positive), point
 
 ## Environment
 
-- mcpsentry version: <!-- output of `pip show mcpsentry | grep Version` -->
+- mcp-witness version: <!-- output of `pip show mcp-witness | grep Version` -->
 - Python version: <!-- output of `python --version` -->
 - OS: <!-- macOS / Linux / Windows -->
-- Install method: <!-- `pip install mcpsentry` / `pip install -e .` from a clone / other -->
+- Install method: <!-- `pip install mcp-witness` / `pip install -e .` from a clone / other -->
 
 ## Output / traceback
 

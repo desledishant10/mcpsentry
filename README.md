@@ -1,6 +1,7 @@
-# mcpsentry
+# mcp-witness
 
-[![tests](https://github.com/desledishant10/mcpsentry/actions/workflows/tests.yml/badge.svg)](https://github.com/desledishant10/mcpsentry/actions/workflows/tests.yml)
+[![PyPI version](https://img.shields.io/pypi/v/mcp-witness.svg)](https://pypi.org/project/mcp-witness/)
+[![tests](https://github.com/desledishant10/mcp-witness/actions/workflows/tests.yml/badge.svg)](https://github.com/desledishant10/mcp-witness/actions/workflows/tests.yml)
 [![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![license: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![python: 3.11+](https://img.shields.io/badge/python-3.11+-blue)](pyproject.toml)
@@ -13,7 +14,7 @@
 
 **Demonstrated on EC2 with live AWS IAM credentials retrieved.** Static rule MCP-S-009 flagged the missing scheme/host validation on `mcp-server-fetch`'s `fetch` tool; the dynamic harness (MCP-D-003) drove the live probe against an EC2 `t3.micro` with IMDSv2 set to Optional and got back a real `AccessKeyId` / `SecretAccessKey` / `Token` triplet for the attached IAM role. Coordinated disclosure filed as [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143) on 2026-05-12; fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` shipped 2026-05-22 with scheme allowlist + RFC-reserved-range denylist + per-redirect validation. The same demo that previously returned IAM credentials now returns *"Fetching private or non-public IP addresses is not allowed"* — **independently verified 2026-05-22**.
 
-That's one of two CVE-track vulnerability classes mcpsentry's detectors have surfaced in real PyPI-published MCP servers. The other is DNS rebinding on HTTP-transport MCP servers (4 packages flagged, all 4 now under coordinated disclosure with the same 2026-08-10 embargo). Six coordinated disclosures total. Together they cover both ends of the MCP transport boundary — server reaching out (SSRF), browser reaching in (DNS rebind).
+That's one of two CVE-track vulnerability classes mcp-witness's detectors have surfaced in real PyPI-published MCP servers. The other is DNS rebinding on HTTP-transport MCP servers (4 packages flagged, all 4 now under coordinated disclosure with the same 2026-08-10 embargo). Six coordinated disclosures total. Together they cover both ends of the MCP transport boundary — server reaching out (SSRF), browser reaching in (DNS rebind).
 
 This isn't theoretical scanning. The detectors that found these vulnerabilities are static rule MCP-S-009 (SSRF) + dynamic scenario MCP-D-003 (SSRF) + static rule MCP-S-014 v0.3 (DNS rebinding, four-patch W1-W4 series developed from the survey work itself).
 
@@ -41,9 +42,8 @@ Each entry includes reproduction commands, the raw trace, an interpretation, cav
 ## Quickstart — audit any pip-installable MCP server in one command
 
 ```bash
-git clone https://github.com/desledishant10/mcpsentry && cd mcpsentry
-pip install -e ".[dev]"
-mcpsentry-audit mcp-server-fetch
+pip install mcp-witness
+mcp-witness-audit mcp-server-fetch
 ```
 
 That single command pip-installs `mcp-server-fetch` (or any other PyPI MCP server), captures its `tools/list` over stdio, runs the static analyzer rules, runs the capability classifier, and prints a human-readable report. Sample output against the official Anthropic reference server:
@@ -65,7 +65,7 @@ Capability tags: net_egress
 Capture saved to: calibration/reports/captured-mcp-server-fetch.json
 ```
 
-Two real findings on the official Anthropic reference server, surfaced from one `mcpsentry-audit` command — one at the description level (S-001 catches agent-directed instructions in the tool's docstring), one at the schema level (S-009 catches the missing SSRF allowlist). The SSRF one was [demonstrated end-to-end on EC2](findings/2026-05-11-MCP-D-003-fetch-direct-environment-dependent-ssrf.md) with real IAM credentials retrieved, disclosed via #4143, and fixed by PR #4226 (verified).
+Two real findings on the official Anthropic reference server, surfaced from one `mcp-witness-audit` command — one at the description level (S-001 catches agent-directed instructions in the tool's docstring), one at the schema level (S-009 catches the missing SSRF allowlist). The SSRF one was [demonstrated end-to-end on EC2](findings/2026-05-11-MCP-D-003-fetch-direct-environment-dependent-ssrf.md) with real IAM credentials retrieved, disclosed via #4143, and fixed by PR #4226 (verified).
 
 ## What's inside
 
@@ -73,14 +73,14 @@ Two real findings on the official Anthropic reference server, surfaced from one 
 
 | Command | Purpose |
 |---------|---------|
-| `mcpsentry-audit` | **One-shot:** install + capture + analyze + classify + report against any pip-installable MCP server |
-| `mcpsentry-capture` | Connect to any stdio MCP server, dump `tools/list` as JSON |
-| `mcpsentry-scaffold-gt` | Generate a calibration ground-truth skeleton from a capture |
-| `mcpsentry-analyze` | Static analysis — Python source or captured JSON |
-| `mcpsentry-classify` | Run the capability classifier on a tool definition |
-| `mcpsentry-eval-calibration` | Compare classifier predictions to hand-labeled ground truth |
-| `mcpsentry-lint-scenarios` | YAML lint for scenario files (catches null-byte smuggling, parse errors, schema violations) |
-| `mcpsentry-test` | Run a dynamic scenario against a real MCP server, optionally with a real LLM agent |
+| `mcp-witness-audit` | **One-shot:** install + capture + analyze + classify + report against any pip-installable MCP server |
+| `mcp-witness-capture` | Connect to any stdio MCP server, dump `tools/list` as JSON |
+| `mcp-witness-scaffold-gt` | Generate a calibration ground-truth skeleton from a capture |
+| `mcp-witness-analyze` | Static analysis — Python source or captured JSON |
+| `mcp-witness-classify` | Run the capability classifier on a tool definition |
+| `mcp-witness-eval-calibration` | Compare classifier predictions to hand-labeled ground truth |
+| `mcp-witness-lint-scenarios` | YAML lint for scenario files (catches null-byte smuggling, parse errors, schema violations) |
+| `mcp-witness-test` | Run a dynamic scenario against a real MCP server, optionally with a real LLM agent |
 
 ### Static analyzer rules (14 of 14 v0.1 rules implemented)
 
@@ -131,7 +131,7 @@ Two agent driver implementations: `stub` (deterministic, plumbing tests) and `an
 ## Architecture
 
 ```
-mcpsentry/
+mcp-witness/
   analyzer/      Static analysis: Python AST + captured-JSON modes, 14 rules
   classifier/    Capability tagger: 8 tags, 8 param roles, Layer 1 (lexical)
   harness/       Dynamic test runner: direct + proxy modes, stub + Claude agents
@@ -216,9 +216,9 @@ After install, every `git commit` runs ruff + a fast tests subset on push.
 For dynamic scenarios that exercise a real LLM, install the optional Anthropic agent and set an API key:
 
 ```bash
-pip install "mcpsentry[anthropic]"
+pip install "mcp-witness[anthropic]"
 export ANTHROPIC_API_KEY=sk-ant-...
-mcpsentry-test scenarios/MCP-D-001-tool-desc-injection-fetch.yaml \
+mcp-witness-test scenarios/MCP-D-001-tool-desc-injection-fetch.yaml \
     --server-cmd python --server-arg=-m --server-arg=mcp_server_fetch \
     --agent anthropic
 ```
@@ -233,7 +233,7 @@ Attack surface enumerated by MCP primitive (tools, resources, prompts, sampling,
 
 ## Responsible disclosure
 
-Findings against third-party servers follow coordinated disclosure: maintainers receive 90 days from notification before public release, extended if a fix is in active development. Reporters using mcpsentry are expected to follow the same practice. The [disclosures/](disclosures/) directory documents every outgoing coordinated-disclosure communication, including channel-decision audit trails (e.g. when a public issue was the channel of last resort, when an intake automation deflected, when a follow-up was sent).
+Findings against third-party servers follow coordinated disclosure: maintainers receive 90 days from notification before public release, extended if a fix is in active development. Reporters using mcp-witness are expected to follow the same practice. The [disclosures/](disclosures/) directory documents every outgoing coordinated-disclosure communication, including channel-decision audit trails (e.g. when a public issue was the channel of last resort, when an intake automation deflected, when a follow-up was sent).
 
 Policy + contact: [SECURITY.md](SECURITY.md).
 

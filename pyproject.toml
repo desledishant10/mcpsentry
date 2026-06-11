@@ -1,11 +1,11 @@
 [project]
-name = "mcpsentry"
+name = "mcp-witness"
 version = "0.2.0"
 description = "Security testing toolkit for MCP servers and AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "mcpsentry contributors" }]
+authors = [{ name = "mcp-witness contributors" }]
 keywords = ["mcp", "model-context-protocol", "security", "scanner", "agent-security"]
 dependencies = [
     "mcp>=1.0",
@@ -15,11 +15,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/desledishant10/mcpsentry"
-Repository = "https://github.com/desledishant10/mcpsentry"
-Documentation = "https://desledishant10.github.io/mcpsentry"
-Issues = "https://github.com/desledishant10/mcpsentry/issues"
-Disclosures = "https://github.com/desledishant10/mcpsentry/tree/main/disclosures"
+Homepage = "https://github.com/desledishant10/mcp-witness"
+Repository = "https://github.com/desledishant10/mcp-witness"
+Documentation = "https://desledishant10.github.io/mcp-witness"
+Issues = "https://github.com/desledishant10/mcp-witness/issues"
+Disclosures = "https://github.com/desledishant10/mcp-witness/tree/main/disclosures"
 
 [project.optional-dependencies]
 dev = [
@@ -57,14 +57,14 @@ ignore = [
 asyncio_mode = "strict"
 
 [project.scripts]
-mcpsentry-test = "harness.cli:main"
-mcpsentry-classify = "classifier.__main__:main"
-mcpsentry-analyze = "analyzer.__main__:main"
-mcpsentry-lint-scenarios = "analyzer.lint_scenarios:main"
-mcpsentry-eval-calibration = "calibration.eval:main"
-mcpsentry-capture = "harness.capture:main"
-mcpsentry-scaffold-gt = "calibration.scaffold:main"
-mcpsentry-audit = "harness.audit:main"
+mcp-witness-test = "harness.cli:main"
+mcp-witness-classify = "classifier.__main__:main"
+mcp-witness-analyze = "analyzer.__main__:main"
+mcp-witness-lint-scenarios = "analyzer.lint_scenarios:main"
+mcp-witness-eval-calibration = "calibration.eval:main"
+mcp-witness-capture = "harness.capture:main"
+mcp-witness-scaffold-gt = "calibration.scaffold:main"
+mcp-witness-audit = "harness.audit:main"
 
 [build-system]
 requires = ["hatchling"]

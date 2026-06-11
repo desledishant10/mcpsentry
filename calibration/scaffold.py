@@ -2,8 +2,8 @@
 
 Workflow:
 
-    mcpsentry-capture --server-cmd ... -o captured.json
-    mcpsentry-scaffold-gt captured.json --name some_server \\
+    mcp-witness-capture --server-cmd ... -o captured.json
+    mcp-witness-scaffold-gt captured.json --name some_server \\
         --source https://... --language python > ground_truth/some_server.yaml
 
 The scaffolded YAML carries every tool's name / description / inputSchema
@@ -69,9 +69,9 @@ def scaffold(
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcpsentry-scaffold-gt")
+    p = argparse.ArgumentParser(prog="mcp-witness-scaffold-gt")
     p.add_argument(
-        "captured", type=Path, help="Path to captured tools.json (from `mcpsentry-capture`)."
+        "captured", type=Path, help="Path to captured tools.json (from `mcp-witness-capture`)."
     )
     p.add_argument("--name", required=True, help="target_name for the ground-truth file.")
     p.add_argument("--source", default="", help="Server source URL or filesystem path.")

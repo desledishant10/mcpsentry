@@ -1,6 +1,6 @@
 # Examples
 
-Worked examples showing mcpsentry in real use. Each is self-contained — the input data lives in the example directory, the commands run against it, and the expected output is checked in for comparison.
+Worked examples showing mcp-witness in real use. Each is self-contained — the input data lives in the example directory, the commands run against it, and the expected output is checked in for comparison.
 
 | # | Example | What it shows |
 |---|---|---|
@@ -12,4 +12,4 @@ Each example is meant to be readable in 5 minutes, runnable in 30 seconds, and r
 
 ## Running these
 
-You'll need mcpsentry installed (`pip install -e .` from the repo root, or eventually `pip install mcpsentry` once published). All input files live next to each example's README; the commands are concrete (no `<placeholder>` substitutions needed).
+You'll need mcp-witness installed (`pip install -e .` from the repo root, or eventually `pip install mcp-witness` once published). All input files live next to each example's README; the commands are concrete (no `<placeholder>` substitutions needed).

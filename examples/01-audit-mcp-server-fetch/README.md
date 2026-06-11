@@ -6,7 +6,7 @@ This is the audit that produced [modelcontextprotocol/servers#4143](https://gith
 
 ```bash
 # From this directory
-mcpsentry-analyze captured.json
+mcp-witness-analyze captured.json
 ```
 
 Expected output:
@@ -29,7 +29,7 @@ Two findings on the official Anthropic reference server, both high-severity, bot
 
 ## What's in `captured.json`
 
-The output of `mcpsentry-capture` connected to a running `mcp-server-fetch` process via stdio. It's the JSON shape every MCP host sees when it connects to the server. Two relevant fields per tool:
+The output of `mcp-witness-capture` connected to a running `mcp-server-fetch` process via stdio. It's the JSON shape every MCP host sees when it connects to the server. Two relevant fields per tool:
 
 - `description` — the natural-language instruction the agent sees
 - `inputSchema` — the JSON Schema the agent uses to construct arguments
@@ -83,7 +83,7 @@ That chain is what produced the EC2 reproduction (see `findings/`) and the discl
 The whole workflow is one command:
 
 ```bash
-mcpsentry-audit <pypi-package-name>
+mcp-witness-audit <pypi-package-name>
 ```
 
-That pip-installs the package, captures its `tools/list` via stdio, runs the analyzer, runs the capability classifier, and prints the report. The output you saw above is what `mcpsentry-audit mcp-server-fetch` produces. If your own server (or one you're considering deploying) shows S-001 + S-009 the same way, that's not necessarily a vulnerability — but it's a "review this" prompt to verify the URL handling in source.
+That pip-installs the package, captures its `tools/list` via stdio, runs the analyzer, runs the capability classifier, and prints the report. The output you saw above is what `mcp-witness-audit mcp-server-fetch` produces. If your own server (or one you're considering deploying) shows S-001 + S-009 the same way, that's not necessarily a vulnerability — but it's a "review this" prompt to verify the URL handling in source.

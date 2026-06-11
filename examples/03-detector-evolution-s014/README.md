@@ -27,10 +27,10 @@ The four files in this directory each contain a *vulnerable* bind pattern modele
 ## Run the analyzer over each fixture
 
 ```bash
-mcpsentry-analyze w1_host_variable.py
-mcpsentry-analyze w2_origin_in_comment.py
-mcpsentry-analyze w3_aiohttp_tcpsite.py
-mcpsentry-analyze w4_env_var_default.py
+mcp-witness-analyze w1_host_variable.py
+mcp-witness-analyze w2_origin_in_comment.py
+mcp-witness-analyze w3_aiohttp_tcpsite.py
+mcp-witness-analyze w4_env_var_default.py
 ```
 
 Each should fire `MCP-S-014` (HIGH). On the v0.1 detector, none of them would have fired.

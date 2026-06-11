@@ -1,13 +1,20 @@
 # Changelog
 
-All notable changes to mcpsentry (formerly MCP-Scan; renamed 2026-06-08 to avoid namespace collision with Snyk-Invariant's `mcp-scan` / `agent-scan`). Format roughly follows [Keep a Changelog](https://keepachangelog.com/); the project is alpha so changes are not yet versioned with semver discipline. Historical version sections below preserve the project's original name as written at release time.
+All notable changes to mcp-witness. Format roughly follows [Keep a Changelog](https://keepachangelog.com/); the project is alpha so changes are not yet versioned with semver discipline. Project name history: `mcp-scan` (initial) → `mcpsentry` (renamed 2026-06-08 to avoid collision with Snyk-Invariant's mcp-scan / agent-scan) → `mcp-witness` (renamed 2026-06-09, after PyPI rejected `mcpsentry` as too similar to the existing `mcp-sentry` package). Historical CHANGELOG sections preserve the project's original name as written at release time.
 
 ## [Unreleased] — main branch
 
+### Released
+
+- **🎉 2026-06-11 — First PyPI release: [`mcp-witness 0.2.0`](https://pypi.org/project/mcp-witness/0.2.0/).** Both wheel and sdist live on PyPI. Quickstart is now `pip install mcp-witness` (replacing the previous `git clone + pip install -e .` flow). End-to-end verified: fresh-venv install → `mcp-witness-audit mcp-server-fetch` produces 2 findings (MCP-S-001 + MCP-S-009 — the SSRF detection that led to #4143).
+
 ### Changed
 
-- **Project renamed: MCP-Scan → mcpsentry.** Avoids collision with Snyk-Invariant's well-established `mcp-scan` (now `agent-scan`, 2.5k stars). PyPI namespace, GitHub repo URL, console scripts, and project-name prose updated; package directories (`analyzer/`, `harness/`, `classifier/`, `calibration/`) keep their functional names. Historical CHANGELOG sections and disclosure records preserve the original name as written at release / send time — only currently-canonical surfaces (README, pyproject, package docs, in-code CLI help) are updated.
-- **Console scripts renamed:** `mcp-scan-*` → `mcpsentry-*` (audit, capture, scaffold-gt, analyze, classify, eval-calibration, lint-scenarios, test). Reinstall after pulling: `pip uninstall mcp-scan -y && pip install -e ".[dev]"`.
+- **Project renamed (second time): mcpsentry → mcp-witness.** PyPI rejected `mcpsentry` upload with `400 Bad Request: The name 'mcpsentry' is too similar to an existing project` — under PyPI's name normalization, `mcpsentry` and the existing `mcp-sentry` package (an MCP server for retrieving issues from sentry.io, v0.6.2) collide. Picked `mcp-witness` from the original backup-name list: zero PyPI collision, zero GitHub-name collision, and "witness" carries three useful connotations for the project (attestation of state, observation of behavior, formal evidence in disclosure). PyPI namespace, GitHub repo, console scripts, env vars, and prose all updated; package directories (`analyzer/`, `harness/`, `classifier/`, `calibration/`) keep their functional names; disclosures + findings + this CHANGELOG's historical sections preserve the prior names as written at the time.
+- **Console scripts renamed (second time):** `mcpsentry-*` → `mcp-witness-*` (audit, capture, scaffold-gt, analyze, classify, eval-calibration, lint-scenarios, test). Reinstall after pulling: `pip uninstall mcpsentry -y && pip install -e ".[dev]"`.
+- **Env vars renamed (second time):** `MCPSENTRY_*` → `MCP_WITNESS_*` (MOCK_CONFIG, AGENT_MODEL, AGENT_MAX_ITERATIONS).
+- **Project renamed (first time, recorded on 2026-06-08): MCP-Scan → mcpsentry.** Avoided collision with Snyk-Invariant's well-established `mcp-scan` (now `agent-scan`, 2.5k stars). PyPI namespace, GitHub repo URL, console scripts, and project-name prose updated; package directories kept their functional names. Subsequently superseded by the second rename above when the chosen replacement also turned out to collide on PyPI's similarity heuristic.
+- **Console scripts renamed (first time):** `mcp-scan-*` → `mcpsentry-*` (audit, capture, scaffold-gt, analyze, classify, eval-calibration, lint-scenarios, test).
 - **README rewritten** to lead with the Anthropic SSRF disclosure narrative (EC2 IAM-credential demo + PR #4226 verified) before test counts / rule tables. The disclosure is the differentiator; test counts are table stakes.
 - **GitHub Pages enabled** at `desledishant10.github.io/mcpsentry`. `_config.yml` excludes `drafts/`, `disclosures/`, `findings/`, source dirs, etc. — only the root README and `docs/` are published as Pages-served HTML.
 - **Embargoed blog draft moved out of `/docs/`** to `/drafts/` to keep it out of Pages indexing pre-2026-08-10. Still in the public repo (open-auditing principle preserved), just not in the Pages-served path.

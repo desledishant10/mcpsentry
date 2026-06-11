@@ -28,10 +28,10 @@ You can either open this issue first to claim the target (avoids duplicate work)
 
 ```bash
 # 1. Capture the tools/list
-mcpsentry-capture --server-cmd <how-to-launch-it> -o /tmp/captured.json
+mcp-witness-capture --server-cmd <how-to-launch-it> -o /tmp/captured.json
 
 # 2. Scaffold the ground-truth skeleton
-mcpsentry-scaffold-gt /tmp/captured.json \
+mcp-witness-scaffold-gt /tmp/captured.json \
     --name <pkg-name> --language python \
     --source <upstream-url> \
     -o calibration/ground_truth/<pkg-name>.yaml
@@ -40,8 +40,8 @@ mcpsentry-scaffold-gt /tmp/captured.json \
 #    and `known_vulns` for each tool. Set `labeled: true`.
 
 # 4. Verify no regression
-mcpsentry-eval-calibration <pkg-name>
-mcpsentry-eval-calibration --all   # full corpus
+mcp-witness-eval-calibration <pkg-name>
+mcp-witness-eval-calibration --all   # full corpus
 
 # 5. Open a PR with:
 #    - calibration/ground_truth/<pkg-name>.yaml

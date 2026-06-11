@@ -1,4 +1,4 @@
-"""CLI: `python -m analyzer <path>` or `mcpsentry-analyze <path>`."""
+"""CLI: `python -m analyzer <path>` or `mcp-witness-analyze <path>`."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _SEV_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcpsentry-analyze")
+    p = argparse.ArgumentParser(prog="mcp-witness-analyze")
     p.add_argument("path", type=Path, help="File or directory to analyze.")
     p.add_argument("--format", choices=["json", "text"], default="text")
     p.add_argument(

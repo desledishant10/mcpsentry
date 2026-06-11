@@ -1,4 +1,4 @@
-"""Lint mcpsentry scenario YAML files.
+"""Lint mcp-witness scenario YAML files.
 
 Catches three classes of bug:
 
@@ -13,7 +13,7 @@ Catches three classes of bug:
 Usage:
 
     python -m analyzer.lint_scenarios scenarios/
-    mcpsentry-lint-scenarios scenarios/
+    mcp-witness-lint-scenarios scenarios/
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def lint_scenario(path: Path) -> list[str]:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mcpsentry-lint-scenarios")
+    p = argparse.ArgumentParser(prog="mcp-witness-lint-scenarios")
     p.add_argument(
         "path",
         type=Path,

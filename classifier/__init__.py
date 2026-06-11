@@ -1,4 +1,4 @@
-"""mcpsentry capability classifier (Layer 1).
+"""mcp-witness capability classifier (Layer 1).
 
 Labels MCP tools with capability tags (`fs_read`, `net_egress`, etc.) and
 parameter roles (`path`, `url`, etc.). Spec: ../docs/capability-classifier.md.

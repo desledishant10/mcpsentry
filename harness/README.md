@@ -1,6 +1,6 @@
 # Harness (Phase 2)
 
-Dynamic test runner for mcpsentry. Loads scenario YAML files (see [../docs/scenario-schema.md](../docs/scenario-schema.md)), executes them against a target MCP server, and reports whether each scenario's oracle condition fired.
+Dynamic test runner for mcp-witness. Loads scenario YAML files (see [../docs/scenario-schema.md](../docs/scenario-schema.md)), executes them against a target MCP server, and reports whether each scenario's oracle condition fired.
 
 ## Status
 
@@ -14,7 +14,7 @@ Dynamic test runner for mcpsentry. Loads scenario YAML files (see [../docs/scena
 - Proxy step types: `inject_tool_description`, `inject_tool_output`, `mutate_tool_definition`, `send_user_message`, `wait`
 - Agent drivers (selected with `--agent`):
   - `stub` (default) — deterministic; for proxy plumbing tests
-  - `anthropic` — real Claude tool-use loop; requires `ANTHROPIC_API_KEY`. Model selectable via `MCPSENTRY_AGENT_MODEL` env var (default `claude-opus-4-7`).
+  - `anthropic` — real Claude tool-use loop; requires `ANTHROPIC_API_KEY`. Model selectable via `MCP_WITNESS_AGENT_MODEL` env var (default `claude-opus-4-7`).
 - `target_tool_capability` filtering and `argument_role` parameter selection via the Layer 1 [capability classifier](../classifier/)
 - Oracle conditions: `canary_hit`, `trace_contains`, `tool_call_matches` (substring; JSONPath deferred), `no_user_consent_prompt` (trivially satisfied today — needs agent-side consent-UI plumbing to be meaningful)
 - HTTP canary server
@@ -58,7 +58,7 @@ Tests use a minimal mock MCP server ([testing/mock_server.py](testing/mock_serve
 | `macros.py`       | Two-pass payload macro substitution (`{canary:…}`, `{run_id}`, `{path:…}`, `{unicode_tags:…}`, …).       |
 | `scenario.py`     | Pydantic models for scenario YAML validation.                                                            |
 | `runner.py`       | Orchestrator — setup → attack → oracle → cleanup. Step dispatch and oracle condition evaluation.         |
-| `cli.py`          | `mcpsentry-test <scenario.yaml> --server-cmd …`                                                           |
+| `cli.py`          | `mcp-witness-test <scenario.yaml> --server-cmd …`                                                           |
 
 ## Usage
 

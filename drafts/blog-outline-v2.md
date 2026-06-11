@@ -24,7 +24,7 @@ Alt: *"MCP at the transport layer: how the protocol's HTTP boundary leaks both w
 | 6 | Class-wide observation: ecosystem norm | 450 | expanded — both anti-patterns under one frame |
 | 7 | Disclosure timeline | 150 | rewritten — actual events |
 | 8 | What the ecosystem should do | 550 | expanded — adds MCP-spec recommendation |
-| 9 | About the tool | 150 | updated — mcpsentry rename + current metrics |
+| 9 | About the tool | 150 | updated — mcp-witness rename + current metrics |
 | 10 | Next | 150 | NEW — pointers to follow-ups |
 | 11 | Closing | 100 | slight rewrite |
 

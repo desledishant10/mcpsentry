@@ -28,8 +28,8 @@ short.
 ## Tests
 
 - [ ] `pytest` passes locally
-- [ ] If this changes a rule or classifier lexicon: `mcpsentry-eval-calibration --all` shows no regression
-- [ ] If this changes a scenario: `mcpsentry-lint-scenarios scenarios/` passes
+- [ ] If this changes a rule or classifier lexicon: `mcp-witness-eval-calibration --all` shows no regression
+- [ ] If this changes a scenario: `mcp-witness-lint-scenarios scenarios/` passes
 - [ ] Test counts in README / metrics tables updated if applicable
 
 ## Anything else

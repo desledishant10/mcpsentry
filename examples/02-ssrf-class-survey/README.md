@@ -6,8 +6,8 @@ What "class issue, not single-package issue" looks like in code. Same static rul
 
 ```bash
 # Audit both captures back-to-back
-mcpsentry-analyze captured-mcp-server-fetch.json
-mcpsentry-analyze captured-mcp-server-http-request.json
+mcp-witness-analyze captured-mcp-server-fetch.json
+mcp-witness-analyze captured-mcp-server-http-request.json
 ```
 
 ## Expected output
@@ -59,7 +59,7 @@ The same diff pattern translates near-verbatim to `mcp-server-http-request` and 
 Same pattern as Example 01, applied to whichever server is in scope:
 
 ```bash
-mcpsentry-audit <pypi-package>
+mcp-witness-audit <pypi-package>
 ```
 
 Look for S-009 specifically — it's the load-bearing finding for SSRF. S-001 adds context (the tool is written to nudge the model) but S-009 is what tells you the implementation doesn't constrain the URL.

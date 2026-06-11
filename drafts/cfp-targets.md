@@ -53,14 +53,14 @@ external layers (cloud platform IMDS, reverse proxy, browser SOP) provide
 security — assumptions that hold for the deployment the author had in
 mind and fail for the default pip-install path users actually use.
 
-The poster walks through detector design (mcpsentry's AST-based static
+The poster walks through detector design (mcp-witness's AST-based static
 analyzer + dynamic harness with cloud-metadata oracle), survey methodology,
 EC2 reproduction setup, and disclosure outcomes including the
 detector-evolution story (v0.3 patches W1-W4 reflecting what the survey
 itself taught the rule).
 
 All findings, EC2 runbook, disclosure record, and the open-source scanner
-at github.com/desledishant10/mcpsentry. Coordinated disclosure embargo
+at github.com/desledishant10/mcp-witness. Coordinated disclosure embargo
 expires 2026-08-10.
 
 Authors: Dishant Desle (independent researcher)
@@ -131,7 +131,7 @@ Take-home: a methodology, a scanner (open source, Apache 2.0), and a
 template for coordinated disclosure in the agentic-AI ecosystem.
 
 Speaker bio: Dishant Desle is an independent security researcher building
-MCP-Scan / mcpsentry, an open-source security scanner for MCP servers.
+MCP-Scan / mcp-witness, an open-source security scanner for MCP servers.
 The discovery + fix-verification cycle for modelcontextprotocol/servers#4143
 is the practical case study driving this talk.
 
@@ -171,7 +171,7 @@ Tracks: best fit is vulnerability research or disclosure/advocacy.
 ### Action
 
 - [ ] Calendar reminder: 2026-10-15 — check BSidesSF 2027 CFP opening
-- [ ] If still in active mcpsentry work at that point, submit the more polished version of the OWASP talk
+- [ ] If still in active mcp-witness work at that point, submit the more polished version of the OWASP talk
 
 ## Other targets investigated but not actionable now
 

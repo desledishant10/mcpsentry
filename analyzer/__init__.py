@@ -1,4 +1,4 @@
-"""mcpsentry static analyzer (Phase 1).
+"""mcp-witness static analyzer (Phase 1).
 
 v0.1 ships three rules:
 

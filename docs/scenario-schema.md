@@ -1,6 +1,6 @@
 # Dynamic Test Scenario Schema
 
-This document specifies the YAML format for mcpsentry dynamic test scenarios. The harness reads scenario files, applies them against a target MCP server, and evaluates oracles against the recorded JSON-RPC trace and canary state.
+This document specifies the YAML format for mcp-witness dynamic test scenarios. The harness reads scenario files, applies them against a target MCP server, and evaluates oracles against the recorded JSON-RPC trace and canary state.
 
 ## File layout
 

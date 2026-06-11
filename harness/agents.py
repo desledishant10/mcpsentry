@@ -58,8 +58,8 @@ class AnthropicAgent:
     Configurable via environment variables:
 
     - `ANTHROPIC_API_KEY` (required)
-    - `MCPSENTRY_AGENT_MODEL` (default: `claude-opus-4-7`)
-    - `MCPSENTRY_AGENT_MAX_ITERATIONS` (default: 10)
+    - `MCP_WITNESS_AGENT_MODEL` (default: `claude-opus-4-7`)
+    - `MCP_WITNESS_AGENT_MAX_ITERATIONS` (default: 10)
 
     Conversation state persists across `send_message` calls within the
     same scenario, which is what makes the rug-pull scenario
@@ -73,14 +73,14 @@ class AnthropicAgent:
         except ImportError as e:
             raise RuntimeError(
                 "AnthropicAgent requires the 'anthropic' package — install with "
-                '`pip install "mcpsentry[anthropic]"` or `pip install anthropic`.'
+                '`pip install "mcp-witness[anthropic]"` or `pip install anthropic`.'
             ) from e
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise RuntimeError("AnthropicAgent requires the ANTHROPIC_API_KEY env var.")
         self._api = anthropic.AsyncAnthropic()
-        self.model = model or os.environ.get("MCPSENTRY_AGENT_MODEL", "claude-opus-4-7")
+        self.model = model or os.environ.get("MCP_WITNESS_AGENT_MODEL", "claude-opus-4-7")
         self.max_iterations = max_iterations or int(
-            os.environ.get("MCPSENTRY_AGENT_MAX_ITERATIONS", "10"),
+            os.environ.get("MCP_WITNESS_AGENT_MAX_ITERATIONS", "10"),
         )
         self.messages: list[dict[str, Any]] = []
 
