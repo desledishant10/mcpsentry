@@ -70,7 +70,11 @@ Wildcard `Access-Control-Allow-Origin` is the canonical "any origin can read thi
 
 Repo-wide grep across the package for `add_middleware`, `Middleware(`, `TrustedHost`, `CORSMiddleware`, `AuthMiddleware` returns zero matches. The wildcard CORS headers are emitted by the response constructor in `transport.py` — there is no policy layer that could be turned off via configuration.
 
-## Reproduction (source-level; full PoC harness pending)
+## Reproduction
+
+A containerized end-to-end PoC harness is at [`poc/dns-rebind/`](../poc/dns-rebind/). The default victim is the sibling `mcp-streamablehttp-proxy` finding; swapping in `mcp-fetch-streamablehttp-server` is a one-file change to `victim/Dockerfile` + `victim/start.sh`. The harness verifies the same vulnerability class (no Origin/Host validation on inbound requests) — the SSRF compounding documented below adds depth when running against this specific package.
+
+### Source-level reproduction
 
 Verifiable on a single host without a DNS server, since `0.0.0.0` makes the server reachable directly:
 
