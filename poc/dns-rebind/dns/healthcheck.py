@@ -34,7 +34,7 @@ def query_evil_example(timeout: float = 1.0) -> bool:
     try:
         sock.sendto(packet, ("127.0.0.1", 53))
         data, _ = sock.recvfrom(512)
-    except (OSError, socket.timeout):
+    except (TimeoutError, OSError):
         return False
     finally:
         sock.close()
