@@ -1,0 +1,93 @@
+name: publish
+
+# Trusted publishing to PyPI via OIDC. No stored secrets — PyPI verifies
+# the GitHub Actions identity directly. Configuration on the PyPI side:
+#   Project settings → Publishing → Add a new publisher → GitHub Actions
+#     Owner:               desledishant10
+#     Repository name:     mcp-witness
+#     Workflow filename:   publish.yml
+#     Environment name:    pypi
+#
+# Then this workflow fires on every published GitHub Release. The release
+# tag must match the version in pyproject.toml (e.g. tag `v0.3.0` for
+# version 0.3.0); the build job verifies that.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build tooling
+        run: pip install --upgrade build twine
+      - name: Verify tag matches pyproject version
+        run: |
+          # Strip leading 'v' from tag (v0.3.0 -> 0.3.0)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PYPROJECT_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "Tag version:        $TAG_VERSION"
+          echo "Pyproject version:  $PYPROJECT_VERSION"
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject version $PYPROJECT_VERSION"
+            exit 1
+          fi
+      - name: Build
+        run: python -m build
+      - name: Twine check
+        run: twine check dist/*
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/mcp-witness/
+    permissions:
+      id-token: write           # required for OIDC trusted publishing
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI via trusted publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No `password` or `username` — OIDC handles authentication.
+        # `attestations: true` adds PEP 740 publish-attestations.
+        with:
+          attestations: true
+
+  attach-to-release:
+    name: Attach wheel + sdist to the GitHub Release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # required to upload release assets
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY"

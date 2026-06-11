@@ -1,169 +1,73 @@
 # Releasing mcp-witness to PyPI
 
-This doc covers the one-time setup + the per-release workflow. The package builds cleanly today; only the actual PyPI upload step requires credentials I can't share with anyone else.
+The recommended flow uses **trusted publishing via GitHub Actions** — no stored secrets, no manual `twine upload`, releases triggered by a git tag + published GitHub release. Manual `twine` is documented as a fallback at the bottom.
 
-## One-time setup
+## Per-release workflow (trusted publishing — recommended)
 
-### 1. PyPI account + 2FA + API token
-
-1. Create an account at https://pypi.org/account/register/. Use the same email you use on GitHub.
-2. Enable 2FA (TOTP or recovery codes). **Required for new project uploads as of 2024.**
-3. Generate a project-scoped API token: https://pypi.org/manage/account/token/ — for the first upload it'll have to be account-scoped because the project doesn't exist yet; after the first upload, regenerate as project-scoped.
-4. Same for TestPyPI: https://test.pypi.org/account/register/
-
-### 2. Local credential storage
-
-The cleanest setup is `~/.pypirc`:
-
-```ini
-[distutils]
-index-servers =
-    pypi
-    testpypi
-
-[pypi]
-username = __token__
-password = pypi-AgEIcHlwaS5vcmcCJ...   # your pypi token here
-
-[testpypi]
-repository = https://test.pypi.org/legacy/
-username = __token__
-password = pypi-AgENdGVzdC5weXBpLm...   # your testpypi token here
-```
-
-Permissions: `chmod 600 ~/.pypirc` so other users on the machine can't read your tokens.
-
-### 3. Tooling
+Once the one-time setup below is done, every release is three steps from the repo root:
 
 ```bash
-pip install --upgrade build twine
+# 1. Bump version in pyproject.toml (e.g. 0.2.0 → 0.3.0), commit, push
+sed -i.bak 's/^version = "0.2.0"/version = "0.3.0"/' pyproject.toml && rm pyproject.toml.bak
+git add pyproject.toml CHANGELOG.md   # update CHANGELOG too
+git commit -m "Release 0.3.0"
+git push
+
+# 2. Tag (matching the pyproject version exactly, with a `v` prefix)
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
+
+# 3. Create a GitHub Release — this triggers .github/workflows/publish.yml
+gh release create v0.3.0 \
+  --title "v0.3.0" \
+  --notes "Release notes — see CHANGELOG.md for details."
 ```
 
-That's it for setup. From here, every release uses the same workflow below.
+That's it. Tags fire the workflow, which:
 
-## Per-release workflow
+1. Builds wheel + sdist
+2. Verifies the tag version matches `pyproject.toml`'s version (catches the most common mistake)
+3. Runs `twine check`
+4. Publishes to PyPI via OIDC (no token paste, no stored secrets)
+5. Attaches wheel + sdist to the GitHub Release
 
-### 1. Pre-release checks
+Watch the run at `https://github.com/desledishant10/mcp-witness/actions`. On success the package shows up at `https://pypi.org/project/mcp-witness/X.Y.Z/`.
 
-```bash
-# Tests pass
-pytest                                                  # expect 164+ passing
+## One-time setup (trusted publishing)
 
-# Lint is clean (if/when ruff is wired up)
-ruff check .
+### 1. Configure the PyPI trusted publisher
 
-# Version is bumped in pyproject.toml
-grep '^version = ' pyproject.toml
-# Make sure this matches the release you're about to publish
-# Format: semver-ish. 0.2.0 → 0.2.1 (bugfix) or 0.3.0 (new rule / scenario)
+Browser-only step. Visit `https://pypi.org/manage/project/mcp-witness/settings/publishing/` (after the first manual release exists — you must already have a project on PyPI to add a trusted publisher).
+
+Click **Add a new publisher** → **GitHub Actions** and fill in:
+
+| Field | Value |
+|---|---|
+| Owner | `desledishant10` |
+| Repository name | `mcp-witness` |
+| Workflow filename | `publish.yml` |
+| Environment name | `pypi` |
+
+Save. PyPI now trusts the GitHub Actions identity for this repo + workflow + environment combo, and the OIDC handshake works without a stored token.
+
+### 2. Create the `pypi` environment in GitHub (one click)
+
+Visit `https://github.com/desledishant10/mcp-witness/settings/environments` and create an environment named `pypi`. No required reviewers, no secrets to add — the environment exists purely to gate the `publish-pypi` job in the workflow.
+
+(Optional but recommended: enable "Required reviewers" on the environment with yourself as the reviewer. That adds a manual-confirm step before the actual PyPI upload, which is a useful belt-and-braces gate for accidental publishes.)
+
+### 3. Verify the workflow file
+
+The workflow lives at `.github/workflows/publish.yml`. The first three lines describe what it does:
+
+```yaml
+name: publish
+
+# Trusted publishing to PyPI via OIDC. No stored secrets — PyPI verifies
+# the GitHub Actions identity directly.
 ```
 
-### 2. Build
-
-```bash
-# Remove any stale build artifacts
-rm -rf dist/ build/
-
-# Build sdist + wheel
-python -m build
-
-# Verify what's in the wheel
-ls -la dist/
-python -m zipfile -l dist/mcp-witness-X.Y.Z-py3-none-any.whl | head -20
-
-# Confirm entry points
-unzip -p dist/mcp-witness-X.Y.Z-py3-none-any.whl mcp-witness-X.Y.Z.dist-info/entry_points.txt
-```
-
-Expected entry points (all 8 console scripts):
-
-```
-[console_scripts]
-mcp-witness-analyze = analyzer.__main__:main
-mcp-witness-audit = harness.audit:main
-mcp-witness-capture = harness.capture:main
-mcp-witness-classify = classifier.__main__:main
-mcp-witness-eval-calibration = calibration.eval:main
-mcp-witness-lint-scenarios = analyzer.lint_scenarios:main
-mcp-witness-scaffold-gt = calibration.scaffold:main
-mcp-witness-test = harness.cli:main
-```
-
-### 3. Upload to TestPyPI (always test there first)
-
-```bash
-twine upload --repository testpypi dist/*
-```
-
-If twine complains about the package name being taken on TestPyPI, that's because someone else already registered `mcp-witness` on the test instance. You can either rename for the test (e.g. `mcp-witness-rc1`) or proceed straight to real PyPI for the first publish since TestPyPI is best-effort.
-
-### 4. Install + smoke-test from TestPyPI
-
-```bash
-# Fresh venv, isolated from your dev install
-python -m venv /tmp/test-mcp-witness
-source /tmp/test-mcp-witness/bin/activate
-
-# Install from TestPyPI (--extra-index-url for transitive deps from real PyPI)
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ mcp-witness
-
-# Smoke tests
-mcp-witness-audit --help
-mcp-witness-analyze --help
-mcp-witness-capture --help
-
-# Real-world smoke: scan mcp-server-fetch
-pip install mcp-server-fetch
-mcp-witness-audit mcp-server-fetch
-# Expect: 2 findings — MCP-S-001 + MCP-S-009 (the SSRF detection)
-
-# Done
-deactivate
-rm -rf /tmp/test-mcp-witness
-```
-
-If the smoke test passes, proceed. If it fails, debug in your dev environment + rebuild.
-
-### 5. Upload to real PyPI
-
-```bash
-twine upload dist/*
-```
-
-Watch the output for the URL the package was published at. Should be `https://pypi.org/project/mcp-witness/X.Y.Z/`.
-
-### 6. Tag the release in git
-
-```bash
-git tag -a v0.2.0 -m "Release 0.2.0"
-git push origin v0.2.0
-```
-
-### 7. Create a GitHub Release
-
-```bash
-gh release create v0.2.0 \
-  --title "v0.2.0" \
-  --notes "Release notes — see CHANGELOG.md for full details." \
-  dist/*
-```
-
-This attaches the wheel + sdist to the GitHub release as well, so users can download them directly.
-
-### 8. Update README quickstart
-
-After the first PyPI publish, edit `README.md` to use `pip install mcp-witness` in the quickstart instead of `git clone`. Commit + push.
-
-### 9. Verify install from real PyPI
-
-```bash
-python -m venv /tmp/verify-mcp-witness
-source /tmp/verify-mcp-witness/bin/activate
-pip install mcp-witness
-mcp-witness-audit mcp-server-fetch
-deactivate
-rm -rf /tmp/verify-mcp-witness
-```
+If you ever need to change the workflow filename (e.g. rename to `release.yml`), update the corresponding **Workflow filename** field in the PyPI trusted-publisher config or PyPI will reject the OIDC handshake.
 
 ## Versioning policy
 
@@ -173,37 +77,112 @@ rm -rf /tmp/verify-mcp-witness
 
 Alpha while pre-1.0; bump minor liberally during alpha.
 
-## Auto-publish via GitHub Actions (future)
+## Pre-release checklist
 
-Goal: tag in git → CI builds → CI publishes to PyPI. Eliminates the manual twine step.
+Before bumping the version, regardless of which release path you use:
 
-Recipe (not yet implemented):
+```bash
+# Tests pass
+pytest                                                  # expect 164+ passing
 
-```yaml
-# .github/workflows/publish.yml
-on:
-  release:
-    types: [published]
+# Lint + format clean
+ruff check .
+ruff format --check .
 
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write       # for PyPI trusted publishing (OIDC, no API token needed)
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - run: pip install build
-      - run: python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
+# Calibration corpus eval — no regressions
+mcp-witness-eval-calibration --all
 ```
 
-This uses PyPI's "trusted publishing" (no API token stored as a GitHub secret), which requires a one-time setup on PyPI's side. Worth doing once the first manual release is out.
+If anything fails, fix before tagging.
 
-## Common gotchas
+## Fallback: manual `twine` (legacy / debugging)
 
-- **PyPI name squat.** Verify `mcp-witness` is not already taken: `pip search mcp-witness` (deprecated) or visit https://pypi.org/project/mcp-witness/ in a browser. Should 404 until you publish.
-- **Tests in the wheel.** Build currently includes `tests/` directories in the wheel. Not a problem for users, but bloats the install. If trimming matters, add `tests` to `[tool.hatch.build.targets.wheel].exclude` in pyproject.toml.
-- **Version conflict.** If you forget to bump version and try to upload, PyPI rejects with "File already exists." Fix: bump version in pyproject.toml, rebuild, re-upload.
-- **TestPyPI being flaky.** If TestPyPI is down or slow, you can skip step 3 — the build artifacts and smoke tests in step 2 catch most issues. TestPyPI is belt-and-suspenders.
+Use this only when trusted publishing isn't an option (workflow disabled, debugging a CI issue, publishing from an air-gapped machine, etc.).
+
+<details>
+<summary>Manual upload steps (click to expand)</summary>
+
+### 1. One-time setup — PyPI account + 2FA + API token
+
+1. Create an account at https://pypi.org/account/register/.
+2. Enable 2FA (TOTP). **Required for new project uploads.**
+3. Generate a project-scoped API token at https://pypi.org/manage/account/token/.
+4. Same for TestPyPI: https://test.pypi.org/account/register/ — separate account, separate token. PyPI and TestPyPI tokens are NOT interchangeable.
+
+### 2. Local credential storage
+
+```ini
+# ~/.pypirc
+[distutils]
+index-servers =
+    pypi
+    testpypi
+
+[pypi]
+username = __token__
+password = pypi-AgEIcHlwaS5vcmcCJ...   # your PyPI token (from pypi.org)
+
+[testpypi]
+repository = https://test.pypi.org/legacy/
+username = __token__
+password = pypi-AgENdGVzdC5weXBpLm...   # your TestPyPI token (from test.pypi.org)
+```
+
+`chmod 600 ~/.pypirc` so other users on the machine can't read your tokens.
+
+### 3. Build + upload
+
+```bash
+# Tooling
+pip install --upgrade build twine
+
+# Build
+rm -rf dist/ build/
+python -m build
+twine check dist/*
+
+# (Optional) Test on TestPyPI first
+twine upload --repository testpypi dist/*
+
+# Smoke-test from TestPyPI
+python -m venv /tmp/test-mcp-witness
+source /tmp/test-mcp-witness/bin/activate
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ mcp-witness
+mcp-witness-audit mcp-server-fetch
+deactivate
+rm -rf /tmp/test-mcp-witness
+
+# Publish to real PyPI
+twine upload dist/*
+
+# Tag + release
+git tag -a v0.X.Y -m "Release 0.X.Y"
+git push origin v0.X.Y
+gh release create v0.X.Y --title "v0.X.Y" --notes "..." dist/*
+```
+
+### Common manual-flow gotchas
+
+- **PyPI and TestPyPI are separate services.** Tokens are NOT interchangeable. Same prefix (`pypi-...`) for both, so visually identical — pay attention.
+- **Project-name similarity rejection.** PyPI returns `400 Bad Request: The name 'X' is too similar to an existing project` for names that normalize to the same shape as an existing PyPI project. The name `mcpsentry` was rejected on first attempt because it collides with `mcp-sentry`; we ended up on `mcp-witness`. Check name availability with `curl -s -o /dev/null -w "%{http_code}\n" https://pypi.org/pypi/<name>/json` before committing to a new name; a 404 is necessary but not sufficient (similarity heuristic still applies).
+- **Version conflict.** If you upload a version that already exists on PyPI, twine returns `400: File already exists`. Bump version + rebuild + retry. PyPI never allows re-uploading the same `X.Y.Z`.
+
+</details>
+
+## Verification after publish
+
+Whether you used trusted publishing or manual `twine`:
+
+```bash
+python -m venv /tmp/verify-mcp-witness
+source /tmp/verify-mcp-witness/bin/activate
+pip install mcp-witness                  # ← latest version
+mcp-witness-audit --help
+mcp-witness-audit mcp-server-fetch       # should produce 2 findings (S-001 + S-009)
+deactivate
+rm -rf /tmp/verify-mcp-witness
+```
+
+## Future: signed releases via Sigstore
+
+The `pypa/gh-action-pypi-publish@release/v1` action used in `publish.yml` already enables PEP 740 publish attestations via `attestations: true`. PyPI displays these on the project's release page as a signal of "this release was actually built by the GitHub Actions identity registered as the trusted publisher" — not a content signature, but a provenance attestation that's hard to forge.
