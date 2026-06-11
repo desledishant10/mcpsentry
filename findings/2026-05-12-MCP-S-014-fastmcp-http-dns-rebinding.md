@@ -100,7 +100,7 @@ The package is also smaller-footprint than the `atrawog` packages — disclosure
 ## Suggested follow-up
 
 1. **Check whether `ARadRareness/mcp-registry` has the GitHub Security tab enabled.** If yes, file an advisory; if no, fall back to a public issue (the disclosure timeline justifies it after good-faith private contact attempts).
-2. **DNS-rebind PoC harness** — same harness covers all three findings.
+2. **DNS-rebind PoC harness** — delivered at [`poc/dns-rebind/`](../poc/dns-rebind/). The harness targets `mcp-streamablehttp-proxy` by default; swapping in `fastmcp-http` is a one-file change to `victim/Dockerfile` + `victim/start.sh`.
 3. **Patch S-014 W1** in MCP-Scan v0.3 — the `self.flask_app.run(host=host, port=port)` pattern with a parameter-default of `"0.0.0.0"` is exactly the W1 case. Resolution: when `host=` is non-constant, follow the surrounding function's default-arg value (`ast.FunctionDef.args.defaults`). After W1 patches, this finding would fire automatically.
 
 ## Disclosure

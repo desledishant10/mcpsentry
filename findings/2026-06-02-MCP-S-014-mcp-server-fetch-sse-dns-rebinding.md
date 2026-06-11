@@ -95,7 +95,11 @@ $ grep -rin "trustedhost\|add_middleware\|origin\|cors\|before_request\|host_hea
 
 Identical text to upstream `mcp-server-fetch` v2025.4.7 `src/fetch/src/mcp_server_fetch/server.py`. The HTTP-fetch implementation is a fork (or near-verbatim copy) of upstream's, with no scheme allowlist, no IP-class denylist, and the same accidental robots.txt-first defense documented in [findings/2026-05-11-MCP-D-003-fetch-direct-environment-dependent-ssrf.md](2026-05-11-MCP-D-003-fetch-direct-environment-dependent-ssrf.md). The upstream fix shipped in [PR #4226](https://github.com/modelcontextprotocol/servers/pull/4226); this fork has **not** taken it.
 
-## Reproduction (source-level; full DNS-rebind harness pending)
+## Reproduction
+
+The DNS-rebind PoC harness at [`poc/dns-rebind/`](../poc/dns-rebind/) covers this finding too — adapting it to `mcp-server-fetch-sse` is a one-file change to `victim/Dockerfile` + `victim/start.sh`. The compounding worst-case (rebind → SSE session → fetch IMDS → IAM credentials) is the most interesting variant to run, but requires a cloud host with IMDS reachable; documenting it as a separate companion to the standard harness is queued.
+
+### Source-level reproduction
 
 ```bash
 pip install mcp-server-fetch-sse==0.1.1
@@ -178,14 +182,14 @@ The interesting wrinkle is the **PyPI attribution**: the wheel's METADATA lists 
 ## Caveats
 
 - **Attribution is unverified.** "Anthropic, PBC." in the Author field and `jadamson@anthropic.com` as Maintainer are self-declared metadata; PyPI does not verify them. The disclosure plan treats Jack Adamson as the technical maintainer-of-record (since the email is the only published contact) AND notifies Anthropic security via their HackerOne program in parallel, so Anthropic can determine whether the package is legitimately theirs or a misattribution that warrants takedown.
-- **No full PoC harness yet.** DNS-rebind is described from first principles; the source-level analysis suffices to claim the vulnerability — every step of the attack chain is observable in the installed wheel.
+- **PoC harness delivered.** Containerized reproduction at [`poc/dns-rebind/`](../poc/dns-rebind/). The default victim is `mcp-streamablehttp-proxy` v0.2.0 (the sibling finding); adapting to `mcp-server-fetch-sse` is a one-file `victim/` swap. Real DNS-rebinding against headless Chromium is hard (Chromium's resolver enforces a ~60-second cache TTL — Chromium issue 40076953), so the browser-side leg uses a reverse-proxy equivalent that delivers the same victim-side conditions; the vulnerability under test is the victim's missing Origin/Host validation, which is exercised identically in both attack paths.
 - **Adoption is likely low.** The broken import on current `mcp` versions means anyone installing today fails at startup. Existing installs from when the API matched (~mcp 1.1.x era) are the realistic attack surface. The PyPI download counts (not retrieved here) would calibrate severity precision.
 - **`mcp-server-fetch-http` console script vs `mcp-server-fetch-sse` console script.** The package ships both. The HTTP+SSE one (this finding) is what's vulnerable. The plain SSE-stdio one (`mcp-server-fetch-sse` via `main_sse()`) is the one that fails to import; even if it worked, it's stdio-transport-equivalent and not in scope for S-014.
 
 ## Suggested follow-up
 
 1. **File coordinated disclosure** to Jack Adamson at the published maintainer email, with HackerOne CC to Anthropic Security. See [disclosures/2026-06-02-mcp-server-fetch-sse-dns-rebinding.md](../disclosures/2026-06-02-mcp-server-fetch-sse-dns-rebinding.md).
-2. **DNS-rebind reproduction harness** — same harness covers all four DNS-rebind findings. Single container, single command.
+2. **DNS-rebind reproduction harness** — delivered at [`poc/dns-rebind/`](../poc/dns-rebind/). Single command (`make demo`) covers the default target; adapting to any of the four DNS-rebind findings is a one-file `victim/` swap.
 3. **Audit the wrapped fetch surface** by re-running the v0.3 detector on `mcp_server_fetch/server.py` and `mcp_server_fetch/sse_server.py` specifically for SSRF rules (S-009 already fires; D-003 dynamic probe would fire if the package could be loaded).
 
 ## Disclosure
