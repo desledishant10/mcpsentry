@@ -8,19 +8,26 @@
 [![findings: 12](https://img.shields.io/badge/findings-12-orange)](findings/)
 [![CVE-track classes: 2](https://img.shields.io/badge/CVE--track_classes-2-red)](findings/)
 
-> Security scanner for Model Context Protocol servers and AI agents.
+> Coordinated-disclosure track for Model Context Protocol server security — and the scanner that finds the filings.
 
-## Found and disclosed a real SSRF in Anthropic's reference `mcp-server-fetch`
+## Six coordinated security disclosures against PyPI-published MCP servers
 
-**Demonstrated on EC2 with live AWS IAM credentials retrieved.** Static rule MCP-S-009 flagged the missing scheme/host validation on `mcp-server-fetch`'s `fetch` tool; the dynamic harness (MCP-D-003) drove the live probe against an EC2 `t3.micro` with IMDSv2 set to Optional and got back a real `AccessKeyId` / `SecretAccessKey` / `Token` triplet for the attached IAM role. Coordinated disclosure filed as [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143) on 2026-05-12; fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` shipped 2026-05-22 with scheme allowlist + RFC-reserved-range denylist + per-redirect validation. The same demo that previously returned IAM credentials now returns *"Fetching private or non-public IP addresses is not allowed"* — **independently verified 2026-05-22**.
+**One verified upstream fix shipped.** **One maintainer-confirmed-unmaintained outcome.** **Four filings in flight under coordinated embargo through 2026-08-10.**
 
-That's one of two CVE-track vulnerability classes mcp-witness's detectors have surfaced in real PyPI-published MCP servers. The other is DNS rebinding on HTTP-transport MCP servers (4 packages flagged, all 4 now under coordinated disclosure with the same 2026-08-10 embargo). Six coordinated disclosures total. Together they cover both ends of the MCP transport boundary — server reaching out (SSRF), browser reaching in (DNS rebind).
+mcp-witness is built around the disclosure track at [`disclosures/`](disclosures/). The scanner — 14 static rules + 7 dynamic scenarios + a capability classifier — is the engine that surfaces filings. The disclosure records and their outcomes are the durable artifacts:
 
-This isn't theoretical scanning. The detectors that found these vulnerabilities are static rule MCP-S-009 (SSRF) + dynamic scenario MCP-D-003 (SSRF) + static rule MCP-S-014 v0.3 (DNS rebinding, four-patch W1-W4 series developed from the survey work itself).
+- **`mcp-server-fetch` v2025.4.7** — SSRF demonstrated on EC2 with real AWS IAM credentials retrieved (`AccessKeyId` / `SecretAccessKey` / `Token` triplet). Coordinated disclosure filed as [modelcontextprotocol/servers#4143](https://github.com/modelcontextprotocol/servers/issues/4143) on 2026-05-12. Fix PR [#4226](https://github.com/modelcontextprotocol/servers/pull/4226) by `@kgarg2468` shipped 2026-05-22 with scheme allowlist + RFC-reserved-range denylist + per-redirect validation. ✅ **Independently re-verified 2026-05-22** — the same EC2 demo that previously returned IAM credentials now returns *"Fetching private or non-public IP addresses is not allowed"*.
+- **`mcp-server-http-request` v0.1.0** (statespace) — same SSRF class. Filed via email 2026-05-12, silent through day +30, then maintainer-confirmed unmaintained via LinkedIn DM on 2026-06-11 ("not an actively maintained package"). Yank request pending.
+- **4× DNS rebinding** in HTTP-transport servers — `mcp-streamablehttp-proxy`, `mcp-fetch-streamablehttp-server`, `fastmcp-http`, `mcp-server-fetch-sse`. All under coordinated disclosure with 2026-08-10 embargo. Reproducible end-to-end via the containerized harness at [`poc/dns-rebind/`](poc/dns-rebind/) (`make demo`).
 
-## Real findings to date
+Two CVE-track vulnerability classes covering both ends of the MCP transport boundary — server reaching out (SSRF), browser reaching in (DNS rebind). The detectors that found them are static rules `MCP-S-009` (SSRF) + `MCP-S-014` v0.3 (DNS rebind, four-patch W1–W4 series developed from the survey itself) + dynamic scenario `MCP-D-003` (SSRF). Detector evolution is itself part of the audit trail — every patch is documented against the finding that motivated it.
 
-Twelve documented audit observations against eleven PyPI-published servers, captured in [findings/](findings/), plus a [DNS-rebinding survey](findings/2026-05-12-dns-rebinding-survey.md) that frames four of them as one class:
+**Full disclosure track:** [`disclosures/`](disclosures/) — status table, methodology notes, channel-decision audit trails.
+**Per-finding evidence:** [`findings/`](findings/) — reproduction + raw output + interpretation, one file per observation.
+
+## Findings ledger
+
+Twelve documented audit observations against eleven PyPI-published servers, captured in [findings/](findings/) (status-table index at [findings/README.md](findings/README.md)), plus a [DNS-rebinding class survey](findings/2026-05-12-dns-rebinding-survey.md) that frames four of them as one class:
 
 | Date | Target | Test | Outcome |
 |---|---|---|---|
@@ -37,7 +44,7 @@ Twelve documented audit observations against eleven PyPI-published servers, capt
 | 2026-05-11 | `mcp-server-aidd` | [D-002 (direct path-traversal)](findings/2026-05-11-MCP-D-002-aidd-direct-defense.md) | Defense (allowed-directory containment working) |
 | 2026-05-11 | `mcp-server-aidd` | [S-001 + S-002 + S-005 (static, multi-hit)](findings/2026-05-11-aidd-three-rule-multi-hit.md) | Info (3 simultaneous rules — pattern stress test) |
 
-Each entry includes reproduction commands, the raw trace, an interpretation, caveats, and a disclosure recommendation. **Two CVE-track classes are now in flight: SSRF in stdio fetch servers (2 packages, disclosed; 1 fix verified) and DNS rebinding in HTTP-transport servers (4 packages, all disclosed).**
+Each entry includes reproduction commands, the raw trace, an interpretation, caveats, and a disclosure recommendation. **Two CVE-track classes are now in flight: SSRF in stdio fetch servers (2 packages, disclosed; 1 fix verified, 1 maintainer-confirmed unmaintained) and DNS rebinding in HTTP-transport servers (4 packages, all disclosed).**
 
 ## Quickstart — audit any pip-installable MCP server in one command
 
@@ -233,7 +240,9 @@ Attack surface enumerated by MCP primitive (tools, resources, prompts, sampling,
 
 ## Responsible disclosure
 
-Findings against third-party servers follow coordinated disclosure: maintainers receive 90 days from notification before public release, extended if a fix is in active development. Reporters using mcp-witness are expected to follow the same practice. The [disclosures/](disclosures/) directory documents every outgoing coordinated-disclosure communication, including channel-decision audit trails (e.g. when a public issue was the channel of last resort, when an intake automation deflected, when a follow-up was sent).
+Findings against third-party servers follow coordinated disclosure: maintainers receive 90 days from notification before public release, extended if a fix is in active development. Reporters using mcp-witness are expected to follow the same practice. The [disclosures/](disclosures/) directory documents every outgoing coordinated-disclosure communication, including channel-decision audit trails — when a public issue was the channel of last resort ([ARadRareness/mcp-registry#3](https://github.com/ARadRareness/mcp-registry/issues/3)), when an intake automation deflected (HackerOne triage interstitial + `disclosure@anthropic.com` auto-responder, both documented as substantive disclosure outcomes), when a LinkedIn DM with a polite escape-valve surfaced an unmaintained-confirmation after 30 days of email silence.
+
+The disclosure track is the project's load-bearing artifact. See [disclosures/README.md](disclosures/README.md) for the full status table and methodology notes.
 
 Policy + contact: [SECURITY.md](SECURITY.md).
 
