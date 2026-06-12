@@ -88,6 +88,7 @@ Two real findings on the official Anthropic reference server, surfaced from one 
 | `mcp-witness-eval-calibration` | Compare classifier predictions to hand-labeled ground truth |
 | `mcp-witness-lint-scenarios` | YAML lint for scenario files (catches null-byte smuggling, parse errors, schema violations) |
 | `mcp-witness-test` | Run a dynamic scenario against a real MCP server, optionally with a real LLM agent |
+| `mcp-witness-disclose` | **Coordinated-disclosure helper.** Scaffold new disclosure records, track day-count milestones (`status`), render day-appropriate follow-up bodies (`ping`) |
 
 ### Static analyzer rules (14 of 14 v0.1 rules implemented)
 

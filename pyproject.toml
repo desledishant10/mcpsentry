@@ -65,10 +65,11 @@ mcp-witness-eval-calibration = "calibration.eval:main"
 mcp-witness-capture = "harness.capture:main"
 mcp-witness-scaffold-gt = "calibration.scaffold:main"
 mcp-witness-audit = "harness.audit:main"
+mcp-witness-disclose = "disclose.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["harness", "classifier", "analyzer", "calibration"]
+packages = ["harness", "classifier", "analyzer", "calibration", "disclose"]

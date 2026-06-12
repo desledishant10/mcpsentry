@@ -4,6 +4,15 @@ All notable changes to mcp-witness. Format roughly follows [Keep a Changelog](ht
 
 ## [Unreleased] — main branch
 
+### Added
+
+- **`mcp-witness-disclose` — coordinated-disclosure helper CLI** (new `disclose/` package; **+21 tests, 164 → 185**). Codifies the day +14 / +21 / +30 / +45 / +60 / +90 milestone cadence used to run the mcp-witness disclosure track and makes the methodology lift-able by anyone else doing coordinated security disclosure. Three v0.1 subcommands:
+  - **`mcp-witness-disclose new <target>`** — scaffold a `disclosures/YYYY-MM-DD-<slug>.md` file with frontmatter prefilled (Filed, Filed by, Filed to, Affected, Embargo at +90 days, Status: drafted) plus channel-decision-audit + body + Updates section skeletons. Refuses to overwrite without `--force`.
+  - **`mcp-witness-disclose status`** — table or `--json` view of every disclosure in `disclosures/`. For each: filing date, day-count vs `--today` (defaults to today), parsed status, and the next-milestone calculation (e.g. "day +45 pointer issue in 15d (2026-06-26)"). Summary line counts open / closed / due-today / overdue. Smoke-tested against the real 4 in-flight disclosures: produces the same dates the human escalation playbook landed on.
+  - **`mcp-witness-disclose ping <slug>`** — render a day-appropriate message body. Day +14 / +21 templates are soft confirmations; day +30 switches to escalation language with soft-channel options (LinkedIn / Twitter / contact form / third email); day +45 generates a non-exploitative pointer-issue body for filing on the upstream repo; day +60 is the final-notice template naming the embargo publish date. Slug is fuzzy-matched (exact slug, basename, or prefix substring across `disclosures/`).
+  - Implementation layers: `disclose.dates` (milestone cadence + day arithmetic, both injectable via `--today` for reproducibility), `disclose.parse` (permissive markdown frontmatter parser tolerant of multi-line `Filed to:` / `Affected:` blocks and bold-emphasis-wrapped Status lines), `disclose.templates` (safe-substitution templates rendering `<missing field>` rather than raising on unbound names), `disclose.cli` (argparse, subcommand dispatch, status-row formatting). Heuristic `is_closed()` classifies "fix verified" / "unmaintained" / "publicly disclosed" statuses as closed for the summary line; conservative — anything ambiguous stays "open."
+  - Console script registered as `mcp-witness-disclose`; package added to hatch wheel targets.
+
 ### Released
 
 - **🎉 2026-06-11 — First PyPI release: [`mcp-witness 0.2.0`](https://pypi.org/project/mcp-witness/0.2.0/).** Both wheel and sdist live on PyPI. Quickstart is now `pip install mcp-witness` (replacing the previous `git clone + pip install -e .` flow). End-to-end verified: fresh-venv install → `mcp-witness-audit mcp-server-fetch` produces 2 findings (MCP-S-001 + MCP-S-009 — the SSRF detection that led to #4143).
