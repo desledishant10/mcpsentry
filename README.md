@@ -126,7 +126,7 @@ Scenario YAML format: [docs/scenario-schema.md](docs/scenario-schema.md). The se
 
 Layer 1 (lexical) classifier shared by analyzer rules and harness scenario filtering. 8 capability tags, 8 parameter roles, three-tier confidence (`high` / `medium` / `low`). Per the [spec](docs/capability-classifier.md), promotion to "stable" requires ≥10-target corpus + ≥90% precision on `high`-confidence outputs.
 
-**Current calibration corpus state:** 10 labeled targets, 81 tools, **100% precision and 100% recall on all four exercised capability tags** (`exec`, `fs_read`, `fs_write`, `net_egress`). Verified by direct capture against 8 of 10 targets. Hit the spec's ≥10-target / ≥0.9-precision / ≥0.75-recall "stable" threshold. See [calibration/README.md](calibration/README.md).
+**Current calibration corpus state:** 11 labeled targets, 87 tools, **100% precision and 100% recall on all six exercised capability tags** (`db_query`, `db_write`, `exec`, `fs_read`, `fs_write`, `net_egress`). Verified by direct capture against 8 of 11 targets. Hit the spec's ≥10-target / ≥0.9-precision / ≥0.75-recall "stable" threshold. **CI-protected against regression:** [calibration/tests/test_corpus_regression.py](calibration/tests/test_corpus_regression.py) runs the full eval on every PR and fails if precision drops below 0.90, recall below 0.75, target count below 10, parameter-role accuracy below 0.80, or any of the original four v0.1 tags disappears from the corpus. See [calibration/README.md](calibration/README.md).
 
 ### Dynamic harness
 
@@ -183,10 +183,10 @@ Out of scope for v1 (intentional — these are good follow-ups, not features):
 
 | | |
 |---|---|
-| Tests passing | **164 / 164** |
+| Tests passing | **191 / 191** |
 | Analyzer rules | **14 of 14** (S-001..S-014) — v0.1 spec complete + v0.3 W1–W4 patches |
 | Dynamic scenarios | 7 (5 from v0.1 seed set + D-006 subtle-injection + D-007 cloud-metadata-exfil) |
-| Calibration corpus | **10 labeled targets, 81 tools, 100/100 precision-recall** (8 verified by direct capture) — hit the spec's "stable" threshold |
+| Calibration corpus | **11 labeled targets, 87 tools, 100/100 precision-recall** (8 verified by direct capture) — hit the spec's "stable" threshold; CI-protected via [test_corpus_regression.py](calibration/tests/test_corpus_regression.py) |
 | Real-world finding entries | **12 + 1 class survey** (6 vulnerabilities across 2 disclosure-track classes — SSRF + DNS rebinding; 4 defense; 2 informational) |
 | Coordinated disclosures filed | **6** (1 fix shipped + independently verified; 5 awaiting maintainer response with 2026-08-10 embargo) |
 | Packages | 5 (`analyzer`, `classifier`, `harness`, `calibration` + `scenarios` as YAML) |
